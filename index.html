@@ -949,8 +949,8 @@
   function startSync(){
     if(syncTimer)clearInterval(syncTimer);
     syncFromServer();
-    // 500ms轮询version检查，体验接近实时；完整同步只在有变化时触发
-    syncTimer=setInterval(syncFromServer,500);
+    // 1秒轮询version检查，单线程服务器不能太频繁；完整同步只在有变化时触发
+    syncTimer=setInterval(syncFromServer,1000);
   }
   // 时间痕迹：每60秒刷新一次所有便签的不透明度（冰箱慢慢变老）
   var ageTimer=null;

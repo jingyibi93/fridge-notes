@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
-"""冰箱便签 - 同步服务器（线程池 + 轻量version检查 + 文件锁防并发）"""
+"""冰箱便签 - 同步服务器（单线程稳定版 + version轻量检查 + 文件锁）"""
 import json
 import os
 import time
 import fcntl
-import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from socketserver import ThreadingMixIn
 from urllib.parse import urlparse, parse_qs
 
 DATA_DIR = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', os.path.dirname(os.path.abspath(__file__)))
@@ -16,25 +14,19 @@ LOCK_FILE = os.path.join(DATA_DIR, 'fridge_data.lock')
 # ===== 全局内存缓存 + 文件锁 =====
 _data_cache = None
 _data_loaded = False
-_data_lock = threading.Lock()  # 内存缓存读写锁
 
 def load_data():
     global _data_cache, _data_loaded
-    with _data_lock:
-        if _data_loaded and _data_cache is not None:
-            return json.loads(json.dumps(_data_cache))
+    if _data_loaded and _data_cache is not None:
+        return json.loads(json.dumps(_data_cache))
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        with _data_lock:
-            _data_cache = data
+            _data_cache = json.load(f)
             _data_loaded = True
-            return json.loads(json.dumps(data))
-    data = {"families": {}}
-    with _data_lock:
-        _data_cache = data
-        _data_loaded = True
-    return data
+            return json.loads(json.dumps(_data_cache))
+    _data_cache = {"families": {}}
+    _data_loaded = True
+    return json.loads(json.dumps(_data_cache))
 
 def save_data(data):
     global _data_cache, _data_loaded
@@ -42,9 +34,13 @@ def save_data(data):
     with open(tmp_file, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     os.replace(tmp_file, DATA_FILE)
-    with _data_lock:
-        _data_cache = data
-        _data_loaded = True
+    _data_cache = data
+    _data_loaded = True
+
+def invalidate_cache():
+    """使内存缓存失效，下次load_data时重新从文件读取"""
+    global _data_loaded
+    _data_loaded = False
 
 def with_lock(fn):
     """装饰器：加文件锁执行写操作，防止并发覆盖"""
@@ -52,26 +48,12 @@ def with_lock(fn):
         with open(LOCK_FILE, 'w') as lock_f:
             fcntl.flock(lock_f, fcntl.LOCK_EX)
             try:
+                invalidate_cache()  # 写前失效缓存，确保读到最新
                 result = fn(*args, **kwargs)
                 return result
             finally:
                 fcntl.flock(lock_f, fcntl.LOCK_UN)
     return wrapper
-
-# 线程池HTTPServer，限制最大并发线程数
-class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
-    daemon_threads = True
-    # 限制最大并发线程，防止资源耗尽
-    max_threads = 20
-    _thread_semaphore = threading.Semaphore(max_threads)
-
-    def process_request(self, request, client_address):
-        # 用信号量限制并发
-        self._thread_semaphore.acquire()
-        try:
-            ThreadingMixIn.process_request(self, request, client_address)
-        finally:
-            self._thread_semaphore.release()
 
 class FridgeHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -105,7 +87,7 @@ class FridgeHandler(BaseHTTPRequestHandler):
             self.send_json({"ok": True})
             return
 
-        # 轻量版本检查：只返回updatedAt时间戳，客户端用于判断是否需要完整同步
+        # 轻量版本检查：只返回updatedAt，极快
         if path == '/api/version':
             code = params.get('code', [''])[0].upper()
             data = load_data()
@@ -180,12 +162,11 @@ class FridgeHandler(BaseHTTPRequestHandler):
         data = load_data()
         family = data.get('families', {}).get(code, None)
         if family and note_id in family.get('notes', {}):
-            # 不直接删除，标记为_deleted，让其他客户端同步时能看到此note已被删除
             family['notes'][note_id]['_deleted'] = True
             family['notes'][note_id]['deletedAt'] = time.time()
             family['notes'][note_id]['updatedAt'] = time.time()
             family['updatedAt'] = time.time()
-            # 清理超过1小时的已删除便签，释放存储
+            # 清理超过1小时的已删除便签
             now = time.time()
             to_purge = [nid for nid, n in family.get('notes', {}).items()
                         if n.get('_deleted') and now - n.get('deletedAt', 0) > 3600]
@@ -310,6 +291,6 @@ class FridgeHandler(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 9998))
-    server = ThreadedHTTPServer(('0.0.0.0', port), FridgeHandler)
+    server = HTTPServer(('0.0.0.0', port), FridgeHandler)
     print(f'Fridge server running on http://localhost:{port}')
     server.serve_forever()

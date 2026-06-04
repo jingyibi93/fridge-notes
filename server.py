@@ -1,15 +1,40 @@
 #!/usr/bin/env python3
-"""冰箱便签 - 同步服务器（带文件锁防并发丢数据）"""
+"""冰箱便签 - 同步服务器（SSE实时推送 + 文件锁防并发丢数据）"""
 import json
 import os
 import time
 import fcntl
+import threading
+import queue
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
 from urllib.parse import urlparse, parse_qs
 
 DATA_DIR = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', os.path.dirname(os.path.abspath(__file__)))
 DATA_FILE = os.path.join(DATA_DIR, 'fridge_data.json')
 LOCK_FILE = os.path.join(DATA_DIR, 'fridge_data.lock')
+
+# ===== 多线程HTTP服务器 =====
+class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+    daemon_threads = True
+
+# ===== SSE实时推送 =====
+sse_clients = {}  # {family_code: [queue1, queue2, ...]}
+sse_clients_lock = threading.Lock()
+
+def broadcast_sse(code, event_type, data):
+    """向同一家庭的所有SSE客户端推送事件"""
+    with sse_clients_lock:
+        clients = sse_clients.get(code, [])
+        dead = []
+        for q in clients:
+            try:
+                q.put_nowait({"event": event_type, "data": data})
+            except:
+                dead.append(q)
+        for q in dead:
+            try: clients.remove(q)
+            except: pass
 
 # ===== 全局内存缓存 + 文件锁 =====
 _data_cache = None
@@ -45,7 +70,6 @@ def with_lock(fn):
         with open(LOCK_FILE, 'w') as lock_f:
             fcntl.flock(lock_f, fcntl.LOCK_EX)  # 排他锁
             try:
-                # 锁内重新读文件，确保拿到最新数据
                 result = fn(*args, **kwargs)
                 return result
             finally:
@@ -79,6 +103,10 @@ class FridgeHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         params = parse_qs(parsed.query)
+
+        if path == '/api/events':
+            self.handle_sse(params)
+            return
 
         if path == '/api/sync':
             code = params.get('code', [''])[0].upper()
@@ -120,9 +148,58 @@ class FridgeHandler(BaseHTTPRequestHandler):
         # 默认：serve静态文件
         self.serve_static(path)
 
+    def handle_sse(self, params):
+        """SSE长连接：服务器主动推送变更，实现实时同步"""
+        code = params.get('code', [''])[0].upper()
+        if not code:
+            self.send_response(400)
+            self.end_headers()
+            return
+
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/event-stream')
+        self.send_header('Cache-Control', 'no-cache')
+        self.send_header('Connection', 'keep-alive')
+        self.send_header('X-Accel-Buffering', 'no')  # nginx不缓冲
+        self.send_cors()
+        self.end_headers()
+
+        # 注册此客户端到SSE广播列表
+        q = queue.Queue()
+        with sse_clients_lock:
+            if code not in sse_clients:
+                sse_clients[code] = []
+            sse_clients[code].append(q)
+
+        try:
+            # 发送连接成功事件
+            self.wfile.write(b'data: {"type":"connected"}\n\n')
+            self.wfile.flush()
+
+            # 阻塞等待事件，15秒无事件发心跳
+            while True:
+                try:
+                    msg = q.get(timeout=15)
+                    event = msg.get("event", "update")
+                    data = msg.get("data", {})
+                    payload = json.dumps(data, ensure_ascii=False)
+                    self.wfile.write(('event: ' + event + '\ndata: ' + payload + '\n\n').encode('utf-8'))
+                    self.wfile.flush()
+                except queue.Empty:
+                    # 心跳保活
+                    self.wfile.write(b': heartbeat\n\n')
+                    self.wfile.flush()
+        except:
+            pass
+        finally:
+            with sse_clients_lock:
+                if code in sse_clients:
+                    try: sse_clients[code].remove(q)
+                    except: pass
+
     @with_lock
     def _save_note(self, code, note_id, note):
-        data = load_data()  # 锁内重新读最新数据
+        data = load_data()
         if code not in data['families']:
             data['families'][code] = {"members": {}, "notes": {}, "updatedAt": time.time()}
         server_now = time.time()
@@ -134,7 +211,7 @@ class FridgeHandler(BaseHTTPRequestHandler):
 
     @with_lock
     def _save_member(self, code, member_id, member):
-        data = load_data()  # 锁内重新读最新数据
+        data = load_data()
         if code not in data['families']:
             data['families'][code] = {"members": {}, "notes": {}, "updatedAt": time.time()}
         data['families'][code]['members'][member_id] = member
@@ -143,7 +220,7 @@ class FridgeHandler(BaseHTTPRequestHandler):
 
     @with_lock
     def _delete_note(self, code, note_id):
-        data = load_data()  # 锁内重新读最新数据
+        data = load_data()
         family = data.get('families', {}).get(code, None)
         if family and note_id in family.get('notes', {}):
             del family['notes'][note_id]
@@ -152,7 +229,7 @@ class FridgeHandler(BaseHTTPRequestHandler):
 
     @with_lock
     def _delete_member(self, code, member_id):
-        data = load_data()  # 锁内重新读最新数据
+        data = load_data()
         family = data.get('families', {}).get(code, None)
         if family and member_id in family.get('members', {}):
             del family['members'][member_id]
@@ -181,6 +258,8 @@ class FridgeHandler(BaseHTTPRequestHandler):
                 return
 
             updated_at = self._save_note(code, note_id, note)
+            # SSE广播：通知同家庭其他客户端
+            broadcast_sse(code, 'note_update', {"id": note_id, "note": note})
             self.send_json({"ok": True, "updatedAt": updated_at})
             return
 
@@ -202,6 +281,7 @@ class FridgeHandler(BaseHTTPRequestHandler):
                 return
 
             self._save_member(code, member_id, member)
+            broadcast_sse(code, 'member_update', {"id": member_id, "member": member})
             self.send_json({"ok": True})
             return
 
@@ -221,6 +301,7 @@ class FridgeHandler(BaseHTTPRequestHandler):
                 return
 
             self._delete_note(code, note_id)
+            broadcast_sse(code, 'note_delete', {"id": note_id})
             self.send_json({"ok": True})
             return
 
@@ -229,6 +310,7 @@ class FridgeHandler(BaseHTTPRequestHandler):
             member_id = params.get('id', [''])[0]
 
             self._delete_member(code, member_id)
+            broadcast_sse(code, 'member_delete', {"id": member_id})
             self.send_json({"ok": True})
             return
 
@@ -268,6 +350,6 @@ class FridgeHandler(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 9998))
-    server = HTTPServer(('0.0.0.0', port), FridgeHandler)
+    server = ThreadedHTTPServer(('0.0.0.0', port), FridgeHandler)
     print(f'Fridge server running on http://localhost:{port}')
     server.serve_forever()

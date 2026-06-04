@@ -771,6 +771,9 @@
   var lastSyncTime=0, syncTimer=null, isOnline=false;
   var pendingSaves={}; // 正在保存的便签，同步时跳过
   var localDirty={}; // 本地位置已改变但尚未保存的便签ID
+  var syncing=false; // 同步锁，防止并发同步
+  var syncCount=0; // 同步计数，定期做全量校验
+  var FULL_SYNC_EVERY=10; // 每10次同步做一次全量
 
   var LEGACY_REF_W=1400, LEGACY_REF_H=900;
   function normalizeNotePos(n) {
@@ -866,36 +869,41 @@
   }
 
   async function syncFromServer(){
-    if(!familyCode)return;
-    var result=await apiGet('/api/sync?code='+familyCode+'&since='+lastSyncTime);
-    var dot=document.getElementById('syncDot');
-    if(result.ok){ 
-      var wasOffline=!isOnline;
-      isOnline=true;dot.classList.remove('offline');document.getElementById('offlineBanner').classList.remove('visible');
-      // 从离线恢复：补发队列
-      if(wasOffline&&offlineQueue.length){flushOfflineQueue();}
-      if(result.family){
-        if(result.family.members)Object.keys(result.family.members).forEach(function(mid){members[mid]=result.family.members[mid];});
-        if(result.family.notes)Object.keys(result.family.notes).forEach(function(nid){
-          if(nid in pendingSaves||nid in localDirty)return; // 跳过正在本地保存或位置脏的便签
-          var n=result.family.notes[nid];
-          if(n._deleted){delete notes[nid];removeNoteEl(nid);}
-          else{
-            normalizeNotePos(n);
-            // 只更新数据，不重绘已有元素的位置
-            var existed=!!notes[nid];
-            notes[nid]=n;
-            if(existed){
-              // 已有元素：只更新内容，不动位置
-              updateNoteContent(nid);
-            }else{
-              renderNote(nid);
+    if(!familyCode||syncing)return; // 同步锁：防止并发
+    syncing=true;
+    try{
+      syncCount++;
+      // 定期全量同步，确保不丢便签
+      var useSince=lastSyncTime;
+      if(syncCount%FULL_SYNC_EVERY===1) useSince=0; // 第1次和每10次做全量
+      var result=await apiGet('/api/sync?code='+familyCode+'&since='+useSince);
+      var dot=document.getElementById('syncDot');
+      if(result.ok){
+        var wasOffline=!isOnline;
+        isOnline=true;dot.classList.remove('offline');document.getElementById('offlineBanner').classList.remove('visible');
+        if(wasOffline&&offlineQueue.length){flushOfflineQueue();}
+        if(result.family){
+          if(result.family.members)Object.keys(result.family.members).forEach(function(mid){members[mid]=result.family.members[mid];});
+          if(result.family.notes)Object.keys(result.family.notes).forEach(function(nid){
+            if(nid in pendingSaves)return; // 只跳过当前正在保存的（自己的便签）
+            var n=result.family.notes[nid];
+            if(n._deleted){delete notes[nid];removeNoteEl(nid);}
+            else{
+              normalizeNotePos(n);
+              var existed=!!notes[nid];
+              notes[nid]=n;
+              if(existed){
+                // 已有元素：如果本地没在拖动，更新内容
+                if(!(nid in localDirty)){updateNoteContent(nid);}
+              }else{
+                renderNote(nid);
+              }
             }
-          }
-        });
-        lastSyncTime=result.serverTime||0;saveLocal();updateUI();
-      }
-    }else{isOnline=false;dot.classList.add('offline');document.getElementById('offlineBanner').classList.add('visible');}
+          });
+          lastSyncTime=result.serverTime||0;saveLocal();updateUI();
+        }
+      }else{isOnline=false;dot.classList.add('offline');document.getElementById('offlineBanner').classList.add('visible');}
+    }finally{syncing=false;}
   }
   function startSync(){if(syncTimer)clearInterval(syncTimer);syncFromServer();syncTimer=setInterval(syncFromServer,1500);}
   // 时间痕迹：每60秒刷新一次所有便签的不透明度（冰箱慢慢变老）
@@ -1432,17 +1440,10 @@
     // 先渲染本地缓存的便签（秒开）
     renderAllNotes();
     apiPost('/api/member',{code:familyCode,id:myId,member:{name:myName,color:myColor}});
-    startSync();startAgeTick();
     // 如果有离线队列，先尝试补发
     if(offlineQueue.length){flushOfflineQueue();}
-    (async function(){
-      var result=await apiGet('/api/sync?code='+familyCode+'&since=0');
-      if(result.ok&&result.family){
-        if(result.family.members)Object.keys(result.family.members).forEach(function(mid){members[mid]=result.family.members[mid];});
-        if(result.family.notes)Object.keys(result.family.notes).forEach(function(nid){var n=result.family.notes[nid];if(!n._deleted){normalizeNotePos(n);notes[nid]=n;}});
-        lastSyncTime=result.serverTime||0;renderAllNotes();saveLocal();
-      }
-    })();
+    // startSync 首次调用会做全量同步（since=0），确保数据完整
+    startSync();startAgeTick();
   }
   // 没有familyCode时保持landing显示，不再自动弹joinSheet
 

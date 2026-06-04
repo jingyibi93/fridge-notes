@@ -430,6 +430,61 @@
       font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s;
     }
     .btn-top-icon:active { background: rgba(255,255,255,0.2); transform: scale(0.9); }
+    .bell-badge {
+      position: absolute; top: -2px; right: -4px;
+      min-width: 16px; height: 16px; border-radius: 8px;
+      background: #e74c3c; color: #fff; font-size: 10px; line-height: 16px;
+      text-align: center; padding: 0 4px; font-weight: 700;
+    }
+    .notif-panel {
+      position: fixed; top: 52px; right: 8px; width: min(300px, 88vw);
+      background: rgba(30,30,40,0.95); border-radius: 14px;
+      padding: 14px; z-index: 1000; display: none;
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3); max-height: 60vh; overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .notif-panel.active { display: block; }
+    .notif-panel-title { font-size: 14px; font-weight: 700; color: rgba(255,255,255,0.8); margin-bottom: 10px; }
+    .notif-empty { color: rgba(255,255,255,0.3); font-size: 13px; text-align: center; padding: 20px 0; }
+    .notif-item {
+      padding: 10px; border-radius: 8px; background: rgba(255,255,255,0.06);
+      margin-bottom: 8px; cursor: pointer; transition: background 0.15s;
+    }
+    .notif-item:active { background: rgba(255,255,255,0.12); }
+    .notif-item-text {
+      font-size: 13px; color: rgba(255,255,255,0.8); line-height: 1.4;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .notif-item-from {
+      font-size: 11px; color: rgba(255,255,255,0.35); margin-top: 4px;
+    }
+    .notif-item.unread { border-left: 3px solid #e74c3c; }
+
+    /* @提及便签发光 */
+    @keyframes mentionGlow {
+      0%, 100% { box-shadow: 0 1px 2px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.1), 0 0 8px rgba(231,76,60,0.15); }
+      50% { box-shadow: 0 1px 2px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.1), 0 0 16px rgba(231,76,60,0.35); }
+    }
+    .note.mentioned { animation: mentionGlow 2.5s ease-in-out infinite; }
+
+    /* @提及下拉菜单 */
+    .mention-dropdown {
+      position: fixed; z-index: 1200;
+      background: rgba(30,30,40,0.95); border-radius: 10px;
+      padding: 6px 0; box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      display: none; max-height: 180px; overflow-y: auto;
+    }
+    .mention-dropdown.active { display: block; }
+    .mention-option {
+      padding: 8px 14px; font-size: 14px; color: rgba(255,255,255,0.8);
+      cursor: pointer; transition: background 0.1s; display: flex; align-items: center; gap: 8px;
+    }
+    .mention-option:active, .mention-option:hover { background: rgba(255,255,255,0.1); }
+    .mention-option-color {
+      width: 16px; height: 16px; border-radius: 50%;
+    }
 
     /* ===== BOTTOM SHEET ===== */
     .sheet-overlay {
@@ -752,6 +807,7 @@
   <span class="family-badge" id="familyBadge">未加入</span>
   <div class="sync-dot" id="syncDot"></div>
   <button class="btn-top-icon" id="btnInvite" title="邀请">🔗</button>
+  <button class="btn-top-icon" id="btnBell" title="通知" style="position:relative;">🔔<span class="bell-badge" id="bellBadge" style="display:none;"></span></button>
 </div>
 <button class="fab" id="btnAdd">+</button>
 
@@ -824,6 +880,13 @@
   <button class="btn-leave" id="btnLeave">离开家庭</button>
 </div>
 
+<!-- Notification Panel -->
+<div class="notif-panel" id="notifPanel">
+  <div class="notif-panel-title">🔔 提到我的便签</div>
+  <div id="notifList"></div>
+  <div class="notif-empty" id="notifEmpty" style="display:none;">暂时没有新通知</div>
+</div>
+
 <!-- Fullscreen Photo Viewer -->
 <div id="photoViewer">
   <div class="viewer-bg" id="viewerBg"></div>
@@ -853,6 +916,7 @@
 
 <div class="toast" id="toast"></div>
 <input type="file" id="photoInput" accept="image/*">
+<div class="mention-dropdown" id="mentionDropdown"></div>
 
 <script>
 (function(){
@@ -1058,6 +1122,7 @@
           }
           // lastSyncTime留2秒安全余量，防止保存和同步的时间窗口竞态漏数据
           lastSyncTime=Math.max(0,(result.serverTime||0)-2);saveLocal();updateUI();
+          updateBellBadge();
         }
       }else{isOnline=false;dot.classList.add('offline');document.getElementById('offlineBanner').classList.add('visible');}
     }finally{syncing=false;}
@@ -1102,6 +1167,11 @@
     }
     var ti=TYPE_INFO[n.type]||TYPE_INFO.message;
     el.className='note pinned '+ti.cls;
+    // 如果被@了当前用户，添加发光效果
+    var mentions=n.mentions||[];
+    if(mentions.indexOf(myId)!==-1 && n.authorId!==myId){
+      el.classList.add('mentioned');
+    }
     el.querySelector('.note-magnet').textContent=MAGNET_STYLES[n.magnetStyle!==undefined?n.magnetStyle:0].emoji;
     el.querySelector('.note-type-badge').textContent=ti.emoji;
     var contentEl=el.querySelector('.note-content');
@@ -1176,6 +1246,11 @@
     }
     var ti=TYPE_INFO[n.type]||TYPE_INFO.message;
     el.className='note pinned '+ti.cls;
+    // 如果被@了当前用户，添加发光效果
+    var mentions=n.mentions||[];
+    if(mentions.indexOf(myId)!==-1 && n.authorId!==myId){
+      el.classList.add('mentioned');
+    }
     el.style.left=n.x+'%'; el.style.top=n.y+'%';
     var rz2=n.z||10; el.style.zIndex=rz2; if(rz2>maxZ)maxZ=rz2;
     el.style.setProperty('--note-rotate',(n.rotate||0)+'deg');
@@ -1557,10 +1632,19 @@
 
   async function addNewNote(){
     var text=noteText.value.trim();if(!text){showToast('写点什么吧');return;}
+    // 提取@提及的成员ID
+    var mentions=[];
+    Object.keys(members).forEach(function(mid){
+      var name=members[mid].name||'';
+      if(name && text.indexOf('@'+name)!==-1 && mentions.indexOf(mid)===-1){
+        mentions.push(mid);
+      }
+    });
     var id=genId();
     var n={
       text:text, type:selectedType, itemType:'text',
       authorId:myId, authorName:myName, authorColor:myColor,
+      mentions:mentions,
       time:Date.now(), updatedAt:Date.now()/1000,
       x: 3+Math.random()*70, y: 2+Math.random()*75,
       z:++maxZ, rotate:(Math.random()-0.5)*8,
@@ -1571,7 +1655,7 @@
     notes[id]=n; renderNote(id);
     closeSheet('addSheet','addOverlay');
     var el=noteElements[id];if(el){el.classList.add('sticking');setTimeout(function(){el.classList.remove('sticking');},450);}
-    updateUI(); pendingSaves[id]=true; await saveNoteToServer(id,n); delete pendingSaves[id];
+    updateUI(); updateBellBadge(); pendingSaves[id]=true; await saveNoteToServer(id,n); delete pendingSaves[id];
   }
 
   // 类型选择
@@ -1727,6 +1811,176 @@
     if(syncTimer)clearInterval(syncTimer);saveLocal();updateUI();showToast('已离开');showLanding();
   });
 
+  // ===== @提及下拉菜单 =====
+  var mentionDropdown=document.getElementById('mentionDropdown');
+  var mentionActive=false;
+  var mentionStartPos=-1;
+
+  noteText.addEventListener('input',function(){
+    var val=noteText.value;
+    var pos=noteText.selectionStart;
+    // 找到光标前最近的@
+    var before=val.substring(0,pos);
+    var atIdx=before.lastIndexOf('@');
+    if(atIdx>=0 && (atIdx===0 || before[atIdx-1]===' ' || before[atIdx-1]==='\n')){
+      var query=before.substring(atIdx+1);
+      // query中不能有空格
+      if(query.indexOf(' ')===-1 && query.indexOf('\n')===-1){
+        showMentionDropdown(query,atIdx);
+        return;
+      }
+    }
+    hideMentionDropdown();
+  });
+
+  function showMentionDropdown(query,atIdx){
+    var opts=[];
+    Object.keys(members).forEach(function(mid){
+      var m=members[mid];
+      if(mid===myId)return; // 不@自己
+      var name=m.name||'';
+      if(name && name.toLowerCase().indexOf(query.toLowerCase())===0){
+        opts.push({id:mid,name:name,color:m.color});
+      }
+    });
+    if(!opts.length){hideMentionDropdown();return;}
+    mentionDropdown.innerHTML='';
+    opts.forEach(function(o){
+      var div=document.createElement('div');
+      div.className='mention-option';
+      div.innerHTML='<div class="mention-option-color" style="background:'+o.color+'"></div>@'+o.name;
+      div.addEventListener('mousedown',function(e){e.preventDefault();selectMention(o,atIdx);});
+      div.addEventListener('touchend',function(e){e.preventDefault();selectMention(o,atIdx);});
+      mentionDropdown.appendChild(div);
+    });
+    // 定位到textarea光标附近
+    var rect=noteText.getBoundingClientRect();
+    mentionDropdown.style.left=rect.left+10+'px';
+    mentionDropdown.style.top=(rect.bottom+4)+'px';
+    mentionDropdown.classList.add('active');
+    mentionActive=true;
+    mentionStartPos=atIdx;
+  }
+  function hideMentionDropdown(){
+    mentionDropdown.classList.remove('active');
+    mentionActive=false;
+  }
+  function selectMention(member,atIdx){
+    var val=noteText.value;
+    var pos=noteText.selectionStart;
+    var before=val.substring(0,atIdx);
+    var after=val.substring(pos);
+    noteText.value=before+'@'+member.name+' '+after;
+    noteText.focus();
+    var newPos=atIdx+member.name.length+2;
+    noteText.setSelectionRange(newPos,newPos);
+    hideMentionDropdown();
+  }
+  document.addEventListener('click',function(e){
+    if(mentionActive && !mentionDropdown.contains(e.target) && e.target!==noteText){
+      hideMentionDropdown();
+    }
+  });
+
+  // ===== 🔔 通知系统 =====
+  var readMentionIds={}; // 已读的@提及便签ID
+  var MENTION_READ_KEY='fridge_read_mentions';
+
+  function loadReadMentions(){
+    try{var d=JSON.parse(localStorage.getItem(MENTION_READ_KEY));if(d)readMentionIds=d;}catch(e){}
+  }
+  function saveReadMentions(){
+    try{localStorage.setItem(MENTION_READ_KEY,JSON.stringify(readMentionIds));}catch(e){}
+  }
+  loadReadMentions();
+
+  function getUnreadMentions(){
+    var list=[];
+    Object.keys(notes).forEach(function(nid){
+      var n=notes[nid];
+      if(n._deleted)return;
+      var mentions=n.mentions||[];
+      if(mentions.indexOf(myId)!==-1 && n.authorId!==myId && !readMentionIds[nid]){
+        list.push({id:nid,note:n});
+      }
+    });
+    // 按时间倒序
+    list.sort(function(a,b){return (b.note.time||0)-(a.note.time||0);});
+    return list;
+  }
+
+  function updateBellBadge(){
+    var unread=getUnreadMentions();
+    var badge=document.getElementById('bellBadge');
+    if(unread.length>0){
+      badge.style.display='block';
+      badge.textContent=unread.length>9?'9+':unread.length;
+    }else{
+      badge.style.display='none';
+    }
+  }
+
+  // 同步后更新通知
+  var _origSyncFromServer=syncFromServer;
+
+  // 铃铛点击
+  document.getElementById('btnBell').addEventListener('click',function(){
+    var panel=document.getElementById('notifPanel');
+    if(panel.classList.contains('active')){
+      panel.classList.remove('active');
+    }else{
+      renderNotifPanel();
+      panel.classList.add('active');
+    }
+  });
+  document.getElementById('btnBell').addEventListener('touchend',function(e){
+    e.preventDefault();
+    var panel=document.getElementById('notifPanel');
+    if(panel.classList.contains('active')){
+      panel.classList.remove('active');
+    }else{
+      renderNotifPanel();
+      panel.classList.add('active');
+    }
+  });
+
+  function renderNotifPanel(){
+    var unread=getUnreadMentions();
+    var listEl=document.getElementById('notifList');
+    var emptyEl=document.getElementById('notifEmpty');
+    listEl.innerHTML='';
+    if(!unread.length){
+      emptyEl.style.display='block';
+      return;
+    }
+    emptyEl.style.display='none';
+    unread.forEach(function(item){
+      var div=document.createElement('div');
+      div.className='notif-item unread';
+      div.innerHTML='<div class="notif-item-text">'+(item.note.text||'').substring(0,40)+'</div><div class="notif-item-from" style="color:'+item.note.authorColor+'">'+(item.note.authorName||'匿名')+' · '+formatTime(item.note.time||Date.now())+'</div>';
+      div.addEventListener('click',function(){
+        readMentionIds[item.id]=true;
+        saveReadMentions();
+        updateBellBadge();
+        document.getElementById('notifPanel').classList.remove('active');
+        openNoteReader(item.id);
+      });
+      div.addEventListener('touchend',function(e){
+        e.preventDefault();
+        readMentionIds[item.id]=true;
+        saveReadMentions();
+        updateBellBadge();
+        document.getElementById('notifPanel').classList.remove('active');
+        openNoteReader(item.id);
+      });
+      listEl.appendChild(div);
+    });
+  }
+
+  // 点击冰箱其他区域关闭通知面板
+  fridge.addEventListener('click',function(){document.getElementById('notifPanel').classList.remove('active');});
+  document.getElementById('bgLayer').addEventListener('click',function(){document.getElementById('notifPanel').classList.remove('active');});
+
   // ===== 初始化 =====
   loadLocal();loadOfflineQueue();updateUI();
   if(familyCode){
@@ -1740,6 +1994,7 @@
     if(offlineQueue.length){flushOfflineQueue();}
     // startSync 首次调用会做全量同步（since=0），确保数据完整
     startSync();startAgeTick();
+    updateBellBadge();
   }
   // 没有familyCode时保持landing显示，不再自动弹joinSheet
 

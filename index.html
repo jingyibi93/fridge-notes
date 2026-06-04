@@ -878,6 +878,7 @@
       var id=localIds[i];
       var n=notes[id];
       if(n._deleted)continue;
+      if(id in serverDeletedIds)continue; // 已从服务器删除，不补传
       await apiPost('/api/note',{code:familyCode,id:id,note:n});
     }
   }
@@ -915,13 +916,15 @@
                 else{renderNote(nid);}
               }
             });
-            // 本地有但服务器没有的便签：补传到服务器
+            // 本地有但服务器没有的便签：只有非删除状态且不在serverDeletedIds中才补传
             Object.keys(notes).forEach(function(nid){
               if(notes[nid]._deleted)return;
+              if(nid in serverDeletedIds)return; // 服务器已删除，不补传
               if(!(nid in result.family.notes)&&!(nid in pendingSaves)){
                 apiPost('/api/note',{code:familyCode,id:nid,note:notes[nid]});
               }
             });
+            cleanDeletedIds();
           }
           // lastSyncTime留2秒安全余量，防止保存和同步的时间窗口竞态漏数据
           lastSyncTime=Math.max(0,(result.serverTime||0)-2);saveLocal();updateUI();
@@ -962,7 +965,7 @@
         try{
           var data=JSON.parse(e.data);
           var nid=data.id;
-          if(nid){delete notes[nid];removeNoteEl(nid);saveLocal();updateUI();}
+          if(nid){delete notes[nid];removeNoteEl(nid);serverDeletedIds[nid]=Date.now();saveLocal();updateUI();}
         }catch(ex){}
       });
       evtSource.addEventListener('member_update',function(e){
@@ -1102,8 +1105,15 @@
     el.style.opacity=calcAgeOpacity(n.updatedAt||(n.time?n.time/1000:0));
   }
 
+  // 已从服务器删除的便签ID，防止本地残留数据补传复活
+  var serverDeletedIds={};
+  // 清理超过60秒的删除记录
+  function cleanDeletedIds(){var now=Date.now();Object.keys(serverDeletedIds).forEach(function(id){if(now-serverDeletedIds[id]>60000)delete serverDeletedIds[id];});}
+
   async function deleteNote(id){
-    delete notes[id]; var el=noteElements[id];
+    // 标记为已删除，防止同步补传复活
+    if(notes[id]){notes[id]._deleted=true;notes[id].deletedAt=Date.now();}
+    var el=noteElements[id];
     if(el){
       var ghost=document.createElement('div'); ghost.className='note-ghost';
       ghost.style.left=el.style.left; ghost.style.top=el.style.top;
@@ -1115,6 +1125,8 @@
       setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},380);
       delete noteElements[id];
     }
+    delete notes[id];
+    serverDeletedIds[id]=Date.now();
     updateUI(); saveLocal();
     if(familyCode){
       var result=await apiDelete('/api/note?code='+familyCode+'&id='+id);

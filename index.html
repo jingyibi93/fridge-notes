@@ -911,8 +911,8 @@
                 // 只在服务器版本更新时才覆盖本地
                 if(!localNote||serverUpdate>=localUpdate){
                   notes[nid]=n;
-                  if(localNote&&!(nid in localDirty)){updateNoteContent(nid);}
-                  else if(!localNote){renderNote(nid);}
+                  if(localNote){updateNoteContent(nid);}
+                  else{renderNote(nid);}
                 }
               }
             });
@@ -929,7 +929,7 @@
       }else{isOnline=false;dot.classList.add('offline');document.getElementById('offlineBanner').classList.add('visible');}
     }finally{syncing=false;}
   }
-  function startSync(){if(syncTimer)clearInterval(syncTimer);syncFromServer();syncTimer=setInterval(syncFromServer,1500);}
+  function startSync(){if(syncTimer)clearInterval(syncTimer);syncFromServer();syncTimer=setInterval(syncFromServer,800);}
   // 时间痕迹：每60秒刷新一次所有便签的不透明度（冰箱慢慢变老）
   var ageTimer=null;
   function startAgeTick(){if(ageTimer)clearInterval(ageTimer);refreshAllAgeOpacity();ageTimer=setInterval(refreshAllAgeOpacity,60000);}
@@ -945,6 +945,16 @@
   function updateNoteContent(id){
     var n=notes[id]; if(!n)return;
     var el=noteElements[id]; if(!el)return;
+    // 如果正在拖动中，只更新文字，不动位置
+    var isDragging=el.classList.contains('dragging');
+    if(!isDragging){
+      el.style.left=n.x+'%'; el.style.top=n.y+'%';
+      var nz=n.z||10;
+      el.style.zIndex=nz;
+      if(nz>maxZ)maxZ=nz; // 跟踪最大z值
+      el.style.setProperty('--note-rotate',(n.rotate||0)+'deg');
+      el.style.transform='rotate('+(n.rotate||0)+'deg)';
+    }
     if(n.itemType==='photo'){
       el.querySelector('.photo-inner img').src=n.imageData||'';
       el.querySelector('.photo-author').textContent=n.authorName||'';
@@ -960,7 +970,6 @@
     el.querySelector('.note-author').textContent=n.authorName||'';
     el.querySelector('.note-author').style.color=n.authorColor||'#666';
     el.querySelector('.note-time').textContent=formatTime(n.time||Date.now());
-    // 时间痕迹：更新不透明度
     el.style.opacity=calcAgeOpacity(n.updatedAt||(n.time?n.time/1000:0));
   }
 
@@ -985,7 +994,7 @@
         el.querySelector('.photo-inner').addEventListener('touchend',function(e){e.preventDefault();e.stopPropagation();openPhotoViewer(id);});
       }
       el.style.left=n.x+'%'; el.style.top=n.y+'%';
-      el.style.zIndex=n.z||10;
+      var rz=n.z||10; el.style.zIndex=rz; if(rz>maxZ)maxZ=rz;
       el.style.setProperty('--note-rotate',(n.rotate||0)+'deg');
       el.style.transform='rotate('+(n.rotate||0)+'deg)';
       var ms=n.magnetStyle!==undefined?n.magnetStyle:Math.floor(Math.random()*MAGNET_STYLES.length);
@@ -1012,7 +1021,7 @@
     var ti=TYPE_INFO[n.type]||TYPE_INFO.message;
     el.className='note pinned '+ti.cls;
     el.style.left=n.x+'%'; el.style.top=n.y+'%';
-    el.style.zIndex=n.z||10;
+    var rz2=n.z||10; el.style.zIndex=rz2; if(rz2>maxZ)maxZ=rz2;
     el.style.setProperty('--note-rotate',(n.rotate||0)+'deg');
     el.style.transform='rotate('+(n.rotate||0)+'deg)';
     el.style.setProperty('--author-color',n.authorColor||'#666');

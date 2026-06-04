@@ -56,8 +56,19 @@ def with_lock(fn):
     return wrapper
 
 class FridgeHandler(BaseHTTPRequestHandler):
+    timeout = 10  # 单请求超时10秒，防挂死
+
     def log_message(self, format, *args):
         pass
+
+    def handle_one_request(self):
+        try:
+            super().handle_one_request()
+        except Exception:
+            try:
+                self.send_error(500)
+            except Exception:
+                pass
 
     def send_json(self, obj, status=200):
         body = json.dumps(obj, ensure_ascii=False).encode('utf-8')
@@ -292,5 +303,9 @@ class FridgeHandler(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 9998))
     server = HTTPServer(('0.0.0.0', port), FridgeHandler)
+    server.timeout = 30  # serve_forever循环超时，防止卡死
+    server.max_request_size = 2 * 1024 * 1024  # 最大2MB请求体
+    # 设置socket超时，防止连接挂死
+    server.socket.settimeout(30)
     print(f'Fridge server running on http://localhost:{port}')
     server.serve_forever()

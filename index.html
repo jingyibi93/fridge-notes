@@ -1853,10 +1853,12 @@
       div.addEventListener('touchend',function(e){e.preventDefault();selectMention(o,atIdx);});
       mentionDropdown.appendChild(div);
     });
-    // 定位到textarea光标附近
+    // 定位到textarea上方（底部弹窗里下方没空间）
     var rect=noteText.getBoundingClientRect();
-    mentionDropdown.style.left=rect.left+10+'px';
-    mentionDropdown.style.top=(rect.bottom+4)+'px';
+    mentionDropdown.style.left=Math.max(8,rect.left)+'px';
+    mentionDropdown.style.bottom=(window.innerHeight-rect.top+4)+'px';
+    mentionDropdown.style.top='auto';
+    mentionDropdown.style.maxWidth=Math.min(280,rect.width)+'px';
     mentionDropdown.classList.add('active');
     mentionActive=true;
     mentionStartPos=atIdx;

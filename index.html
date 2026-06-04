@@ -352,7 +352,7 @@
     }
     .reader-comment {
       padding: 6px 0; border-bottom: 1px solid rgba(0,0,0,0.04);
-      font-size: 13px; line-height: 1.5;
+      font-size: 13px; line-height: 1.5; position: relative;
     }
     .reader-comment:last-child { border-bottom: none; }
     .reader-comment-name {
@@ -361,6 +361,16 @@
     .reader-comment-time {
       font-size: 10px; color: rgba(0,0,0,0.25); margin-left: 6px;
     }
+    .reader-comment-del {
+      display: none; position: absolute; right: 0; top: 6px;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: rgba(0,0,0,0.06); border: none;
+      font-size: 12px; line-height: 22px; text-align: center;
+      color: rgba(0,0,0,0.3); cursor: pointer; padding: 0;
+    }
+    .reader-comment-del:active { background: rgba(231,76,60,0.15); color: #e74c3c; }
+    .reader-comment:hover .reader-comment-del,
+    .reader-comment.own .reader-comment-del { display: block; }
     .reader-input-wrap {
       display: flex; gap: 0; align-items: center;
       background: rgba(255,255,255,0.6);
@@ -1502,15 +1512,47 @@
     var comments=n.comments||[];
     var container=document.getElementById('readerComments');
     container.innerHTML='';
-    comments.forEach(function(c){
+    comments.forEach(function(c,idx){
       var div=document.createElement('div');
-      div.className='reader-comment';
+      div.className='reader-comment'+(c.authorId===myId?' own':'');
       var nameSpan='<span class="reader-comment-name" style="color:'+c.authorColor+'">'+(c.authorName||'匿名')+'</span>';
       var timeSpan='<span class="reader-comment-time">'+formatTime(c.time)+'</span>';
       div.innerHTML=nameSpan+c.text+timeSpan;
+      if(c.authorId===myId){
+        var delBtn=document.createElement('button');
+        delBtn.className='reader-comment-del';
+        delBtn.textContent='×';
+        delBtn.setAttribute('data-idx',idx);
+        delBtn.addEventListener('click',function(e){e.stopPropagation();deleteComment(id,idx);});
+        delBtn.addEventListener('touchend',function(e){e.preventDefault();e.stopPropagation();deleteComment(id,idx);});
+        div.appendChild(delBtn);
+      }
       container.appendChild(div);
     });
     container.scrollTop=container.scrollHeight;
+  }
+  async function deleteComment(noteId,commentIdx){
+    var n=notes[noteId]; if(!n||!n.comments)return;
+    if(commentIdx<0||commentIdx>=n.comments.length)return;
+    if(n.comments[commentIdx].authorId!==myId)return;
+    n.comments.splice(commentIdx,1);
+    renderComments(noteId);
+    saveLocal();
+    await saveNoteToServer(noteId,n);
+    // 更新冰箱上的评论计数
+    var el=noteElements[noteId];
+    if(el){
+      var commentCountEl=el.querySelector('.note-comment-count');
+      if(commentCountEl){
+        if(n.comments.length>0){
+          commentCountEl.style.display='flex';
+          commentCountEl.querySelector('span').textContent=n.comments.length;
+        }else{
+          commentCountEl.style.display='none';
+        }
+      }
+    }
+    showToast('评论已删除');
   }
   async function addComment(){
     if(!readerCurrentId)return;

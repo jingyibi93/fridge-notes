@@ -1567,7 +1567,8 @@
     // 提取评论中的@提及
     var commentMentions=[];
     Object.keys(members).forEach(function(mid){
-      var name=members[mid].name||'';
+      var m=members[mid];if(m._left)return;
+      var name=m.name||'';
       if(name && text.indexOf('@'+name)!==-1 && commentMentions.indexOf(mid)===-1){
         commentMentions.push(mid);
       }
@@ -1615,7 +1616,7 @@
     if(myName){avatar.textContent=myName.charAt(0);avatar.style.background=myColor;avatar.title=myName;}
     badge.textContent=familyCode?'\uD83C\uDFE0 '+familyCode:'未加入';
     var ml=document.getElementById('memberList');ml.innerHTML='';
-    Object.keys(members).forEach(function(mid){var m=members[mid];var row=document.createElement('div');row.className='member-row';row.innerHTML='<div class="member-color" style="background:'+m.color+'"></div><span class="member-name">'+(m.name||'匿名')+'</span>'+(mid===myId?'<span class="member-me">我</span>':'');ml.appendChild(row);});
+    Object.keys(members).forEach(function(mid){var m=members[mid];if(m._left)return;var row=document.createElement('div');row.className='member-row';row.innerHTML='<div class="member-color" style="background:'+m.color+'"></div><span class="member-name">'+(m.name||'匿名')+'</span>'+(mid===myId?'<span class="member-me">我</span>':'');ml.appendChild(row);});
     document.getElementById('inviteCodeDisplay').textContent=familyCode||'---';
   }
 
@@ -1712,7 +1713,8 @@
     // 提取@提及的成员ID
     var mentions=[];
     Object.keys(members).forEach(function(mid){
-      var name=members[mid].name||'';
+      var m=members[mid];if(m._left)return;
+      var name=m.name||'';
       if(name && text.indexOf('@'+name)!==-1 && mentions.indexOf(mid)===-1){
         mentions.push(mid);
       }
@@ -1846,9 +1848,13 @@
     var existingMembers={};
     if(existingData.ok&&existingData.family&&existingData.family.members){
       existingMembers=existingData.family.members;
-      // 如果已有同名成员，复用其ID
+      // 如果已有同名成员（包括已离开的），复用其ID，清除_left标记
       Object.keys(existingMembers).forEach(function(mid){
-        if(existingMembers[mid].name===name){myId=mid;myColor=existingMembers[mid].color||myColor;}
+        var em=existingMembers[mid];
+        if(em.name===name){
+          myId=mid;myColor=em.color||myColor;
+          em._left=false; // 重新回归
+        }
       });
     }
 
@@ -1857,7 +1863,7 @@
     // 用服务器members整体替换，避免残留
     if(Object.keys(existingMembers).length>0){
       members=Object.assign({},existingMembers);
-      members[myId]={name:myName,color:myColor};
+      members[myId]={name:myName,color:myColor}; // 确保自己是活跃的
     }
 
     closeSheet('joinSheet','joinOverlay');
@@ -1918,6 +1924,7 @@
     Object.keys(members).forEach(function(mid){
       var m=members[mid];
       if(mid===myId)return; // 不@自己
+      if(m._left)return; // 不@已离开的成员
       var name=m.name||'';
       if(name && name.toLowerCase().indexOf(query.toLowerCase())===0){
         opts.push({id:mid,name:name,color:m.color});
@@ -1990,6 +1997,7 @@
     Object.keys(members).forEach(function(mid){
       var m=members[mid];
       if(mid===myId)return;
+      if(m._left)return;
       var name=m.name||'';
       if(name && name.toLowerCase().indexOf(query.toLowerCase())===0){
         opts.push({id:mid,name:name,color:m.color});

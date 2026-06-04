@@ -1087,10 +1087,11 @@
         var wasOffline=!isOnline;
         isOnline=true;dot.classList.remove('offline');document.getElementById('offlineBanner').classList.remove('visible');
         if(wasOffline&&offlineQueue.length){flushOfflineQueue();}
-        // version没变，不需要完整同步
+        // version没变，不需要完整同步，但仍要刷新通知状态
         if(verResult.updatedAt>0 && verResult.updatedAt===lastServerUpdatedAt){
           lastSyncTime=Math.max(0,(verResult.serverTime||0)-2);
           syncing=false;
+          updateBellBadge();
           return;
         }
         lastServerUpdatedAt=verResult.updatedAt;
@@ -1483,9 +1484,7 @@
     readMentionIds[id+'_comment']=true;
     if(n.comments){
       n.comments.forEach(function(c){
-        if(c.mentions && c.mentions.indexOf(myId)!==-1 && c.authorId!==myId){
-          readMentionIds[id+'_c_'+c.time]=true;
-        }
+        readMentionIds[id+'_c_'+c.time]=true;
       });
     }
     saveReadMentions();
@@ -2045,26 +2044,51 @@
     Object.keys(notes).forEach(function(nid){
       var n=notes[nid];
       if(n._deleted)return;
+      if(n.authorId===myId)return; // 自己的便签不通知
       var reasons=[];
-      // 原因1：被@提及
+      // 原因1：被@提及（mentions数组 或 文本中包含@我的名字）
       var mentions=n.mentions||[];
-      if(mentions.indexOf(myId)!==-1 && n.authorId!==myId && !readMentionIds[nid]){
+      var myNameInText=myName && n.text && n.text.indexOf('@'+myName)!==-1;
+      if((mentions.indexOf(myId)!==-1 || myNameInText) && !readMentionIds[nid]){
         reasons.push('mention');
       }
-      // 原因2：自己的便签被别人评论
-      if(n.authorId===myId && n.commentedBy && n.commentedBy.length>0 && !readMentionIds[nid+'_comment']){
-        reasons.push('comment');
-      }
+      // 原因2：自己的便签被别人评论（此处已跳过自己的便签，移到下面单独检查）
       // 原因3：评论中被@提及
       if(n.comments){
         n.comments.forEach(function(c){
-          if(c.mentions && c.mentions.indexOf(myId)!==-1 && c.authorId!==myId && !readMentionIds[nid+'_c_'+c.time]){
+          if(c.authorId===myId)return; // 自己的评论不通知
+          var cMentions=c.mentions||[];
+          var cMyNameInText=myName && c.text && c.text.indexOf('@'+myName)!==-1;
+          if((cMentions.indexOf(myId)!==-1 || cMyNameInText) && !readMentionIds[nid+'_c_'+c.time]){
             reasons.push('comment_mention');
           }
         });
       }
       if(reasons.length>0){
         list.push({id:nid,note:n,reasons:reasons});
+      }
+    });
+    // 单独检查：自己的便签被别人评论
+    Object.keys(notes).forEach(function(nid){
+      var n=notes[nid];
+      if(n._deleted)return;
+      if(n.authorId!==myId)return; // 只看自己的便签
+      if(!n.comments||!n.comments.length)return;
+      // 检查是否有非自己的评论且未读
+      var hasUnreadComment=false;
+      n.comments.forEach(function(c){
+        if(c.authorId!==myId && !readMentionIds[nid+'_c_'+c.time]){
+          hasUnreadComment=true;
+        }
+      });
+      if(hasUnreadComment && !readMentionIds[nid+'_comment']){
+        // 检查是否已在list中
+        var existing=list.filter(function(item){return item.id===nid;});
+        if(existing.length>0){
+          if(existing[0].reasons.indexOf('comment')===-1) existing[0].reasons.push('comment');
+        }else{
+          list.push({id:nid,note:n,reasons:['comment']});
+        }
       }
     });
     // 按时间倒序
@@ -2177,7 +2201,7 @@
     if(offlineQueue.length){flushOfflineQueue();}
     // startSync 首次调用会做全量同步（since=0），确保数据完整
     startSync();startAgeTick();
-    updateBellBadge();
+    // updateBellBadge在startSync的异步回调里调用即可，这里不重复调
   }
   // 没有familyCode时保持landing显示，不再自动弹joinSheet
 

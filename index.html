@@ -917,6 +917,7 @@
 <div class="toast" id="toast"></div>
 <input type="file" id="photoInput" accept="image/*">
 <div class="mention-dropdown" id="mentionDropdown"></div>
+<div class="mention-dropdown" id="commentMentionDropdown"></div>
 
 <script>
 (function(){
@@ -1467,6 +1468,18 @@
   function openNoteReader(id){
     var n=notes[id]; if(!n)return;
     readerCurrentId=id;
+    // 打开阅读器时标记该便签的所有通知为已读
+    readMentionIds[id]=true;
+    readMentionIds[id+'_comment']=true;
+    if(n.comments){
+      n.comments.forEach(function(c){
+        if(c.mentions && c.mentions.indexOf(myId)!==-1 && c.authorId!==myId){
+          readMentionIds[id+'_c_'+c.time]=true;
+        }
+      });
+    }
+    saveReadMentions();
+    updateBellBadge();
     var ti=TYPE_INFO[n.type]||TYPE_INFO.message;
     document.getElementById('readerType').textContent=ti.emoji;
     document.getElementById('readerText').textContent=n.text||'';
@@ -1505,11 +1518,29 @@
     var text=input.value.trim();
     if(!text)return;
     var n=notes[readerCurrentId]; if(!n)return;
+    // 提取评论中的@提及
+    var commentMentions=[];
+    Object.keys(members).forEach(function(mid){
+      var name=members[mid].name||'';
+      if(name && text.indexOf('@'+name)!==-1 && commentMentions.indexOf(mid)===-1){
+        commentMentions.push(mid);
+      }
+    });
     if(!n.comments)n.comments=[];
     n.comments.push({
       authorId:myId, authorName:myName, authorColor:myColor,
-      text:text, time:Date.now()
+      text:text, time:Date.now(), mentions:commentMentions
     });
+    // 更新便签级别的mentions（合并）
+    if(!n.mentions)n.mentions=[];
+    commentMentions.forEach(function(mid){
+      if(n.mentions.indexOf(mid)===-1) n.mentions.push(mid);
+    });
+    // 记录被评论通知（便签作者不是自己时）
+    if(!n.commentedBy)n.commentedBy=[];
+    if(n.authorId!==myId && n.commentedBy.indexOf(myId)===-1){
+      n.commentedBy.push(myId);
+    }
     input.value='';
     renderComments(readerCurrentId);
     saveLocal();
@@ -1884,6 +1915,77 @@
     }
   });
 
+  // ===== 评论输入框 @提及下拉 =====
+  var commentMentionDropdown=document.getElementById('commentMentionDropdown');
+  var commentMentionActive=false;
+  var commentMentionStartPos=-1;
+  var readerInput=document.getElementById('readerInput');
+
+  readerInput.addEventListener('input',function(){
+    var val=readerInput.value;
+    var pos=readerInput.selectionStart;
+    var before=val.substring(0,pos);
+    var atIdx=before.lastIndexOf('@');
+    if(atIdx>=0 && (atIdx===0 || before[atIdx-1]===' ')){
+      var query=before.substring(atIdx+1);
+      if(query.indexOf(' ')===-1){
+        showCommentMentionDropdown(query,atIdx);
+        return;
+      }
+    }
+    hideCommentMentionDropdown();
+  });
+
+  function showCommentMentionDropdown(query,atIdx){
+    var opts=[];
+    Object.keys(members).forEach(function(mid){
+      var m=members[mid];
+      if(mid===myId)return;
+      var name=m.name||'';
+      if(name && name.toLowerCase().indexOf(query.toLowerCase())===0){
+        opts.push({id:mid,name:name,color:m.color});
+      }
+    });
+    if(!opts.length){hideCommentMentionDropdown();return;}
+    commentMentionDropdown.innerHTML='';
+    opts.forEach(function(o){
+      var div=document.createElement('div');
+      div.className='mention-option';
+      div.innerHTML='<div class="mention-option-color" style="background:'+o.color+'"></div>@'+o.name;
+      div.addEventListener('mousedown',function(e){e.preventDefault();selectCommentMention(o,atIdx);});
+      div.addEventListener('touchend',function(e){e.preventDefault();selectCommentMention(o,atIdx);});
+      commentMentionDropdown.appendChild(div);
+    });
+    var rect=readerInput.getBoundingClientRect();
+    commentMentionDropdown.style.left=Math.max(8,rect.left)+'px';
+    commentMentionDropdown.style.bottom=(window.innerHeight-rect.top+4)+'px';
+    commentMentionDropdown.style.top='auto';
+    commentMentionDropdown.style.maxWidth=Math.min(280,rect.width)+'px';
+    commentMentionDropdown.classList.add('active');
+    commentMentionActive=true;
+    commentMentionStartPos=atIdx;
+  }
+  function hideCommentMentionDropdown(){
+    commentMentionDropdown.classList.remove('active');
+    commentMentionActive=false;
+  }
+  function selectCommentMention(member,atIdx){
+    var val=readerInput.value;
+    var pos=readerInput.selectionStart;
+    var before=val.substring(0,atIdx);
+    var after=val.substring(pos);
+    readerInput.value=before+'@'+member.name+' '+after;
+    readerInput.focus();
+    var newPos=atIdx+member.name.length+2;
+    readerInput.setSelectionRange(newPos,newPos);
+    hideCommentMentionDropdown();
+  }
+  document.addEventListener('click',function(e){
+    if(commentMentionActive && !commentMentionDropdown.contains(e.target) && e.target!==readerInput){
+      hideCommentMentionDropdown();
+    }
+  });
+
   // ===== 🔔 通知系统 =====
   var readMentionIds={}; // 已读的@提及便签ID
   var MENTION_READ_KEY='fridge_read_mentions';
@@ -1901,9 +2003,26 @@
     Object.keys(notes).forEach(function(nid){
       var n=notes[nid];
       if(n._deleted)return;
+      var reasons=[];
+      // 原因1：被@提及
       var mentions=n.mentions||[];
       if(mentions.indexOf(myId)!==-1 && n.authorId!==myId && !readMentionIds[nid]){
-        list.push({id:nid,note:n});
+        reasons.push('mention');
+      }
+      // 原因2：自己的便签被别人评论
+      if(n.authorId===myId && n.commentedBy && n.commentedBy.length>0 && !readMentionIds[nid+'_comment']){
+        reasons.push('comment');
+      }
+      // 原因3：评论中被@提及
+      if(n.comments){
+        n.comments.forEach(function(c){
+          if(c.mentions && c.mentions.indexOf(myId)!==-1 && c.authorId!==myId && !readMentionIds[nid+'_c_'+c.time]){
+            reasons.push('comment_mention');
+          }
+        });
+      }
+      if(reasons.length>0){
+        list.push({id:nid,note:n,reasons:reasons});
       }
     });
     // 按时间倒序
@@ -1957,11 +2076,23 @@
     }
     emptyEl.style.display='none';
     unread.forEach(function(item){
+      var reasonTag='';
+      if(item.reasons.indexOf('mention')!==-1) reasonTag='🏷️ 有人@你';
+      else if(item.reasons.indexOf('comment_mention')!==-1) reasonTag='🏷️ 评论@你';
+      else if(item.reasons.indexOf('comment')!==-1) reasonTag='💬 新评论';
       var div=document.createElement('div');
       div.className='notif-item unread';
-      div.innerHTML='<div class="notif-item-text">'+(item.note.text||'').substring(0,40)+'</div><div class="notif-item-from" style="color:'+item.note.authorColor+'">'+(item.note.authorName||'匿名')+' · '+formatTime(item.note.time||Date.now())+'</div>';
+      div.innerHTML='<div class="notif-item-text"><span style="font-size:11px;color:#e74c3c;margin-right:4px;">'+reasonTag+'</span>'+(item.note.text||'').substring(0,30)+'</div><div class="notif-item-from" style="color:'+item.note.authorColor+'">'+(item.note.authorName||'匿名')+' · '+formatTime(item.note.time||Date.now())+'</div>';
       div.addEventListener('click',function(){
-        readMentionIds[item.id]=true;
+        if(item.reasons.indexOf('mention')!==-1) readMentionIds[item.id]=true;
+        if(item.reasons.indexOf('comment')!==-1) readMentionIds[item.id+'_comment']=true;
+        if(item.reasons.indexOf('comment_mention')!==-1){
+          (item.note.comments||[]).forEach(function(c){
+            if(c.mentions && c.mentions.indexOf(myId)!==-1 && c.authorId!==myId){
+              readMentionIds[item.id+'_c_'+c.time]=true;
+            }
+          });
+        }
         saveReadMentions();
         updateBellBadge();
         document.getElementById('notifPanel').classList.remove('active');
@@ -1969,7 +2100,15 @@
       });
       div.addEventListener('touchend',function(e){
         e.preventDefault();
-        readMentionIds[item.id]=true;
+        if(item.reasons.indexOf('mention')!==-1) readMentionIds[item.id]=true;
+        if(item.reasons.indexOf('comment')!==-1) readMentionIds[item.id+'_comment']=true;
+        if(item.reasons.indexOf('comment_mention')!==-1){
+          (item.note.comments||[]).forEach(function(c){
+            if(c.mentions && c.mentions.indexOf(myId)!==-1 && c.authorId!==myId){
+              readMentionIds[item.id+'_c_'+c.time]=true;
+            }
+          });
+        }
         saveReadMentions();
         updateBellBadge();
         document.getElementById('notifPanel').classList.remove('active');

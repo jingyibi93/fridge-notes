@@ -868,6 +868,18 @@
     await syncFromServer();
   }
 
+  // 将本地有但服务器没有的便签补传到服务器
+  async function uploadLocalNotes(){
+    if(!familyCode)return;
+    var localIds=Object.keys(notes);
+    for(var i=0;i<localIds.length;i++){
+      var id=localIds[i];
+      var n=notes[id];
+      if(n._deleted)continue;
+      await apiPost('/api/note',{code:familyCode,id:id,note:n});
+    }
+  }
+
   async function syncFromServer(){
     if(!familyCode||syncing)return; // 同步锁：防止并发
     syncing=true;
@@ -884,22 +896,34 @@
         if(wasOffline&&offlineQueue.length){flushOfflineQueue();}
         if(result.family){
           if(result.family.members)Object.keys(result.family.members).forEach(function(mid){members[mid]=result.family.members[mid];});
-          if(result.family.notes)Object.keys(result.family.notes).forEach(function(nid){
-            if(nid in pendingSaves)return; // 只跳过当前正在保存的（自己的便签）
-            var n=result.family.notes[nid];
-            if(n._deleted){delete notes[nid];removeNoteEl(nid);}
-            else{
-              normalizeNotePos(n);
-              var existed=!!notes[nid];
-              notes[nid]=n;
-              if(existed){
-                // 已有元素：如果本地没在拖动，更新内容
-                if(!(nid in localDirty)){updateNoteContent(nid);}
-              }else{
-                renderNote(nid);
+          if(result.family.notes){
+            var serverNoteIds=Object.keys(result.family.notes);
+            // 合并服务器便签到本地：只接受服务器更新时间更新的便签
+            serverNoteIds.forEach(function(nid){
+              if(nid in pendingSaves)return; // 跳过当前正在保存的
+              var n=result.family.notes[nid];
+              if(n._deleted){delete notes[nid];removeNoteEl(nid);}
+              else{
+                normalizeNotePos(n);
+                var localNote=notes[nid];
+                var serverUpdate=n.updatedAt||(n.time?(n.time/1000):0);
+                var localUpdate=(localNote&&localNote.updatedAt)||(localNote&&localNote.time?(localNote.time/1000):0);
+                // 只在服务器版本更新时才覆盖本地
+                if(!localNote||serverUpdate>=localUpdate){
+                  notes[nid]=n;
+                  if(localNote&&!(nid in localDirty)){updateNoteContent(nid);}
+                  else if(!localNote){renderNote(nid);}
+                }
               }
-            }
-          });
+            });
+            // 本地有但服务器没有的便签：补传到服务器
+            Object.keys(notes).forEach(function(nid){
+              if(notes[nid]._deleted)return;
+              if(!(nid in result.family.notes)&&!(nid in pendingSaves)){
+                apiPost('/api/note',{code:familyCode,id:nid,note:notes[nid]});
+              }
+            });
+          }
           lastSyncTime=result.serverTime||0;saveLocal();updateUI();
         }
       }else{isOnline=false;dot.classList.add('offline');document.getElementById('offlineBanner').classList.add('visible');}
@@ -1440,6 +1464,8 @@
     // 先渲染本地缓存的便签（秒开）
     renderAllNotes();
     apiPost('/api/member',{code:familyCode,id:myId,member:{name:myName,color:myColor}});
+    // 将本地便签补传到服务器（防止服务器数据丢失时本地数据也被清空）
+    uploadLocalNotes();
     // 如果有离线队列，先尝试补发
     if(offlineQueue.length){flushOfflineQueue();}
     // startSync 首次调用会做全量同步（since=0），确保数据完整

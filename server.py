@@ -190,7 +190,7 @@ class FridgeHandler(BaseHTTPRequestHandler):
         data = load_data()
         family = data.get('families', {}).get(code, None)
         if family and member_id in family.get('members', {}):
-            del family['members'][member_id]
+            family['members'][member_id]['_left'] = True
             family['updatedAt'] = time.time()
             save_data(data)
 

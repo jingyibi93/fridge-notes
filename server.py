@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""冰箱便签 - 同步服务器（文件锁防并发丢数据 + 快速轮询）"""
+"""冰箱便签 - 同步服务器（线程池 + 轻量version检查 + 文件锁防并发）"""
 import json
 import os
 import time
 import fcntl
+import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
 from urllib.parse import urlparse, parse_qs
 
 DATA_DIR = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', os.path.dirname(os.path.abspath(__file__)))
@@ -14,19 +16,25 @@ LOCK_FILE = os.path.join(DATA_DIR, 'fridge_data.lock')
 # ===== 全局内存缓存 + 文件锁 =====
 _data_cache = None
 _data_loaded = False
+_data_lock = threading.Lock()  # 内存缓存读写锁
 
 def load_data():
     global _data_cache, _data_loaded
-    if _data_loaded and _data_cache is not None:
-        return json.loads(json.dumps(_data_cache))
+    with _data_lock:
+        if _data_loaded and _data_cache is not None:
+            return json.loads(json.dumps(_data_cache))
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, 'r', encoding='utf-8') as f:
-            _data_cache = json.load(f)
+            data = json.load(f)
+        with _data_lock:
+            _data_cache = data
             _data_loaded = True
-            return json.loads(json.dumps(_data_cache))
-    _data_cache = {"families": {}}
-    _data_loaded = True
-    return json.loads(json.dumps(_data_cache))
+            return json.loads(json.dumps(data))
+    data = {"families": {}}
+    with _data_lock:
+        _data_cache = data
+        _data_loaded = True
+    return data
 
 def save_data(data):
     global _data_cache, _data_loaded
@@ -34,8 +42,9 @@ def save_data(data):
     with open(tmp_file, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     os.replace(tmp_file, DATA_FILE)
-    _data_cache = data
-    _data_loaded = True
+    with _data_lock:
+        _data_cache = data
+        _data_loaded = True
 
 def with_lock(fn):
     """装饰器：加文件锁执行写操作，防止并发覆盖"""
@@ -48,6 +57,21 @@ def with_lock(fn):
             finally:
                 fcntl.flock(lock_f, fcntl.LOCK_UN)
     return wrapper
+
+# 线程池HTTPServer，限制最大并发线程数
+class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+    daemon_threads = True
+    # 限制最大并发线程，防止资源耗尽
+    max_threads = 20
+    _thread_semaphore = threading.Semaphore(max_threads)
+
+    def process_request(self, request, client_address):
+        # 用信号量限制并发
+        self._thread_semaphore.acquire()
+        try:
+            ThreadingMixIn.process_request(self, request, client_address)
+        finally:
+            self._thread_semaphore.release()
 
 class FridgeHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -79,6 +103,17 @@ class FridgeHandler(BaseHTTPRequestHandler):
 
         if path == '/health':
             self.send_json({"ok": True})
+            return
+
+        # 轻量版本检查：只返回updatedAt时间戳，客户端用于判断是否需要完整同步
+        if path == '/api/version':
+            code = params.get('code', [''])[0].upper()
+            data = load_data()
+            family = data.get('families', {}).get(code, None)
+            if not family:
+                self.send_json({"ok": True, "updatedAt": 0, "serverTime": time.time()})
+            else:
+                self.send_json({"ok": True, "updatedAt": family.get('updatedAt', 0), "serverTime": time.time()})
             return
 
         if path == '/api/sync':
@@ -275,6 +310,6 @@ class FridgeHandler(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 9998))
-    server = HTTPServer(('0.0.0.0', port), FridgeHandler)
+    server = ThreadedHTTPServer(('0.0.0.0', port), FridgeHandler)
     print(f'Fridge server running on http://localhost:{port}')
     server.serve_forever()

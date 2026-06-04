@@ -59,7 +59,11 @@ class FridgeHandler(BaseHTTPRequestHandler):
             # 只返回 since 之后有变化的便签
             notes = {}
             for nid, n in family.get('notes', {}).items():
-                if n.get('updatedAt', n.get('time', 0)) > since:
+                updated_at = n.get('updatedAt', 0)
+                if updated_at == 0:
+                    t = n.get('time', 0)
+                    updated_at = t / 1000 if t > 1e12 else t
+                if updated_at >= since:
                     notes[nid] = n
             members = family.get('members', {})
             self.send_json({

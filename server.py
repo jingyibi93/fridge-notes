@@ -6,6 +6,7 @@ import time
 import fcntl
 import threading
 import queue
+import select
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 from urllib.parse import urlparse, parse_qs
@@ -17,6 +18,7 @@ LOCK_FILE = os.path.join(DATA_DIR, 'fridge_data.lock')
 # ===== 多线程HTTP服务器 =====
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
+    allow_reuse_address = True
 
 # ===== SSE实时推送 =====
 sse_clients = {}  # {family_code: [queue1, queue2, ...]}
@@ -55,11 +57,9 @@ def load_data():
 
 def save_data(data):
     global _data_cache, _data_loaded
-    # 先写临时文件，再原子重命名，防写入中途崩溃
     tmp_file = DATA_FILE + '.tmp'
     with open(tmp_file, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    # 原子替换
     os.replace(tmp_file, DATA_FILE)
     _data_cache = data
     _data_loaded = True
@@ -68,17 +68,17 @@ def with_lock(fn):
     """装饰器：加文件锁执行写操作，防止并发覆盖"""
     def wrapper(*args, **kwargs):
         with open(LOCK_FILE, 'w') as lock_f:
-            fcntl.flock(lock_f, fcntl.LOCK_EX)  # 排他锁
+            fcntl.flock(lock_f, fcntl.LOCK_EX)
             try:
                 result = fn(*args, **kwargs)
                 return result
             finally:
-                fcntl.flock(lock_f, fcntl.LOCK_UN)  # 解锁
+                fcntl.flock(lock_f, fcntl.LOCK_UN)
     return wrapper
 
 class FridgeHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
-        pass  # silence logs
+        pass
 
     def send_json(self, obj, status=200):
         body = json.dumps(obj, ensure_ascii=False).encode('utf-8')
@@ -104,6 +104,11 @@ class FridgeHandler(BaseHTTPRequestHandler):
         path = parsed.path
         params = parse_qs(parsed.query)
 
+        # 健康检查端点 - Railway用这个判断服务是否存活
+        if path == '/health':
+            self.send_json({"ok": True})
+            return
+
         if path == '/api/events':
             self.handle_sse(params)
             return
@@ -116,7 +121,6 @@ class FridgeHandler(BaseHTTPRequestHandler):
             if not family:
                 self.send_json({"ok": True, "family": None, "serverTime": time.time()})
                 return
-            # 只返回 since 之后有变化的便签
             notes = {}
             for nid, n in family.get('notes', {}).items():
                 updated_at = n.get('updatedAt', 0)
@@ -145,7 +149,6 @@ class FridgeHandler(BaseHTTPRequestHandler):
             self.send_json({"ok": True, "exists": family is not None})
             return
 
-        # 默认：serve静态文件
         self.serve_static(path)
 
     def handle_sse(self, params):
@@ -160,11 +163,10 @@ class FridgeHandler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'text/event-stream')
         self.send_header('Cache-Control', 'no-cache')
         self.send_header('Connection', 'keep-alive')
-        self.send_header('X-Accel-Buffering', 'no')  # nginx不缓冲
+        self.send_header('X-Accel-Buffering', 'no')
         self.send_cors()
         self.end_headers()
 
-        # 注册此客户端到SSE广播列表
         q = queue.Queue()
         with sse_clients_lock:
             if code not in sse_clients:
@@ -172,11 +174,9 @@ class FridgeHandler(BaseHTTPRequestHandler):
             sse_clients[code].append(q)
 
         try:
-            # 发送连接成功事件
             self.wfile.write(b'data: {"type":"connected"}\n\n')
             self.wfile.flush()
 
-            # 阻塞等待事件，15秒无事件发心跳
             while True:
                 try:
                     msg = q.get(timeout=15)
@@ -186,7 +186,6 @@ class FridgeHandler(BaseHTTPRequestHandler):
                     self.wfile.write(('event: ' + event + '\ndata: ' + payload + '\n\n').encode('utf-8'))
                     self.wfile.flush()
                 except queue.Empty:
-                    # 心跳保活
                     self.wfile.write(b': heartbeat\n\n')
                     self.wfile.flush()
         except:
@@ -258,7 +257,6 @@ class FridgeHandler(BaseHTTPRequestHandler):
                 return
 
             updated_at = self._save_note(code, note_id, note)
-            # SSE广播：通知同家庭其他客户端
             broadcast_sse(code, 'note_update', {"id": note_id, "note": note})
             self.send_json({"ok": True, "updatedAt": updated_at})
             return
@@ -319,7 +317,6 @@ class FridgeHandler(BaseHTTPRequestHandler):
     def serve_static(self, path):
         if path == '/' or path == '':
             path = '/index.html'
-        # 安全检查
         if '..' in path:
             self.send_response(403)
             self.end_headers()

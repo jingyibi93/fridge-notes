@@ -773,7 +773,7 @@
   var localDirty={}; // 本地位置已改变但尚未保存的便签ID
   var syncing=false; // 同步锁，防止并发同步
   var syncCount=0; // 同步计数，定期做全量校验
-  var FULL_SYNC_EVERY=10; // 每10次同步做一次全量
+  var FULL_SYNC_EVERY=5; // 每5次同步做一次全量
 
   var LEGACY_REF_W=1400, LEGACY_REF_H=900;
   function normalizeNotePos(n) {
@@ -898,7 +898,7 @@
           if(result.family.members)Object.keys(result.family.members).forEach(function(mid){members[mid]=result.family.members[mid];});
           if(result.family.notes){
             var serverNoteIds=Object.keys(result.family.notes);
-            // 合并服务器便签到本地：只接受服务器更新时间更新的便签
+            // 合并服务器便签到本地
             serverNoteIds.forEach(function(nid){
               if(nid in pendingSaves)return; // 跳过当前正在保存的
               var n=result.family.notes[nid];
@@ -906,14 +906,11 @@
               else{
                 normalizeNotePos(n);
                 var localNote=notes[nid];
-                var serverUpdate=n.updatedAt||(n.time?(n.time/1000):0);
-                var localUpdate=(localNote&&localNote.updatedAt)||(localNote&&localNote.time?(localNote.time/1000):0);
-                // 只在服务器版本更新时才覆盖本地
-                if(!localNote||serverUpdate>=localUpdate){
-                  notes[nid]=n;
-                  if(localNote){updateNoteContent(nid);}
-                  else{renderNote(nid);}
-                }
+                // 直接接受服务器数据，不再用updatedAt比较（客户端/服务器时钟偏移会导致误判）
+                // isDragging保护：updateNoteContent中拖动时跳过位置更新
+                notes[nid]=n;
+                if(localNote){updateNoteContent(nid);}
+                else{renderNote(nid);}
               }
             });
             // 本地有但服务器没有的便签：补传到服务器
@@ -924,7 +921,8 @@
               }
             });
           }
-          lastSyncTime=result.serverTime||0;saveLocal();updateUI();
+          // lastSyncTime留2秒安全余量，防止保存和同步的时间窗口竞态漏数据
+          lastSyncTime=Math.max(0,(result.serverTime||0)-2);saveLocal();updateUI();
         }
       }else{isOnline=false;dot.classList.add('offline');document.getElementById('offlineBanner').classList.add('visible');}
     }finally{syncing=false;}
@@ -1063,6 +1061,10 @@
     if(!result||!result.ok){
       // 离线：加入队列，等上线补发
       queueOp('POST','/api/note',{code:familyCode,id:id,note:n});
+    } else if(result.updatedAt){
+      // 用服务器时间戳替换客户端时间戳，防止时钟偏移导致同步比较失败
+      notes[id].updatedAt=result.updatedAt;
+      saveLocal();
     }
   }
 

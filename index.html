@@ -1104,7 +1104,12 @@
         isOnline=true;dot.classList.remove('offline');document.getElementById('offlineBanner').classList.remove('visible');
         if(wasOffline&&offlineQueue.length){flushOfflineQueue();}
         if(result.family){
-          if(result.family.members)Object.keys(result.family.members).forEach(function(mid){members[mid]=result.family.members[mid];});
+          if(result.family.members){
+            // 用服务器members整体替换，避免离开的成员残留导致重复
+            members=result.family.members;
+            // 确保自己在members里
+            if(myId)members[myId]={name:myName,color:myColor};
+          }
           if(result.family.notes){
             var serverNoteIds=Object.keys(result.family.notes);
             // 合并服务器便签到本地
@@ -1849,8 +1854,11 @@
 
     if(!myId)myId=genId();
     familyCode=code;myName=name;members[myId]={name:myName,color:myColor};
-    // 合并已有成员
-    Object.keys(existingMembers).forEach(function(mid){if(!(mid in members))members[mid]=existingMembers[mid];});
+    // 用服务器members整体替换，避免残留
+    if(Object.keys(existingMembers).length>0){
+      members=Object.assign({},existingMembers);
+      members[myId]={name:myName,color:myColor};
+    }
 
     closeSheet('joinSheet','joinOverlay');
     document.getElementById('memberPanel').classList.remove('active');

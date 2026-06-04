@@ -881,14 +881,30 @@
     }
   }
 
+  var lastServerUpdatedAt=0; // 服务器端family的updatedAt，用于轻量版本检查
   async function syncFromServer(){
-    if(!familyCode||syncing)return; // 同步锁：防止并发
+    if(!familyCode||syncing)return;
     syncing=true;
     try{
+      // 第一步：轻量version检查，判断是否有新数据
       syncCount++;
-      // 定期全量同步，确保不丢便签
       var useSince=lastSyncTime;
-      if(syncCount%FULL_SYNC_EVERY===1) useSince=0; // 第1次和每10次做全量
+      if(syncCount%FULL_SYNC_EVERY===1) useSince=0;
+      var verResult=await apiGet('/api/version?code='+familyCode);
+      if(verResult.ok && verResult.updatedAt!==undefined){
+        var dot=document.getElementById('syncDot');
+        var wasOffline=!isOnline;
+        isOnline=true;dot.classList.remove('offline');document.getElementById('offlineBanner').classList.remove('visible');
+        if(wasOffline&&offlineQueue.length){flushOfflineQueue();}
+        // version没变，不需要完整同步
+        if(verResult.updatedAt>0 && verResult.updatedAt===lastServerUpdatedAt){
+          lastSyncTime=Math.max(0,(verResult.serverTime||0)-2);
+          syncing=false;
+          return;
+        }
+        lastServerUpdatedAt=verResult.updatedAt;
+      }
+      // 第二步：有变化，做完整同步
       var result=await apiGet('/api/sync?code='+familyCode+'&since='+useSince);
       var dot=document.getElementById('syncDot');
       if(result.ok){
@@ -933,8 +949,8 @@
   function startSync(){
     if(syncTimer)clearInterval(syncTimer);
     syncFromServer();
-    // 300ms快速轮询，体验接近实时
-    syncTimer=setInterval(syncFromServer,300);
+    // 500ms轮询version检查，体验接近实时；完整同步只在有变化时触发
+    syncTimer=setInterval(syncFromServer,500);
   }
   // 时间痕迹：每60秒刷新一次所有便签的不透明度（冰箱慢慢变老）
   var ageTimer=null;

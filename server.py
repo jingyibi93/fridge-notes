@@ -1,24 +1,56 @@
 #!/usr/bin/env python3
-"""冰箱便签 - 同步服务器"""
+"""冰箱便签 - 同步服务器（带文件锁防并发丢数据）"""
 import json
 import os
 import time
-import hashlib
+import fcntl
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
 DATA_DIR = os.environ.get('RAILWAY_VOLUME_MOUNT_PATH', os.path.dirname(os.path.abspath(__file__)))
 DATA_FILE = os.path.join(DATA_DIR, 'fridge_data.json')
+LOCK_FILE = os.path.join(DATA_DIR, 'fridge_data.lock')
+
+# ===== 全局内存缓存 + 文件锁 =====
+_data_cache = None
+_data_loaded = False
 
 def load_data():
+    global _data_cache, _data_loaded
+    if _data_loaded and _data_cache is not None:
+        return json.loads(json.dumps(_data_cache))  # deep copy
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    return {"families": {}}
+            _data_cache = json.load(f)
+            _data_loaded = True
+            return json.loads(json.dumps(_data_cache))
+    _data_cache = {"families": {}}
+    _data_loaded = True
+    return json.loads(json.dumps(_data_cache))
 
 def save_data(data):
-    with open(DATA_FILE, 'w', encoding='utf-8') as f:
+    global _data_cache, _data_loaded
+    # 先写临时文件，再原子重命名，防写入中途崩溃
+    tmp_file = DATA_FILE + '.tmp'
+    with open(tmp_file, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+    # 原子替换
+    os.replace(tmp_file, DATA_FILE)
+    _data_cache = data
+    _data_loaded = True
+
+def with_lock(fn):
+    """装饰器：加文件锁执行写操作，防止并发覆盖"""
+    def wrapper(*args, **kwargs):
+        with open(LOCK_FILE, 'w') as lock_f:
+            fcntl.flock(lock_f, fcntl.LOCK_EX)  # 排他锁
+            try:
+                # 锁内重新读文件，确保拿到最新数据
+                result = fn(*args, **kwargs)
+                return result
+            finally:
+                fcntl.flock(lock_f, fcntl.LOCK_UN)  # 解锁
+    return wrapper
 
 class FridgeHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
@@ -88,6 +120,43 @@ class FridgeHandler(BaseHTTPRequestHandler):
         # 默认：serve静态文件
         self.serve_static(path)
 
+    @with_lock
+    def _save_note(self, code, note_id, note):
+        data = load_data()  # 锁内重新读最新数据
+        if code not in data['families']:
+            data['families'][code] = {"members": {}, "notes": {}, "updatedAt": time.time()}
+        note['updatedAt'] = time.time()
+        data['families'][code]['notes'][note_id] = note
+        data['families'][code]['updatedAt'] = time.time()
+        save_data(data)
+
+    @with_lock
+    def _save_member(self, code, member_id, member):
+        data = load_data()  # 锁内重新读最新数据
+        if code not in data['families']:
+            data['families'][code] = {"members": {}, "notes": {}, "updatedAt": time.time()}
+        data['families'][code]['members'][member_id] = member
+        data['families'][code]['updatedAt'] = time.time()
+        save_data(data)
+
+    @with_lock
+    def _delete_note(self, code, note_id):
+        data = load_data()  # 锁内重新读最新数据
+        family = data.get('families', {}).get(code, None)
+        if family and note_id in family.get('notes', {}):
+            del family['notes'][note_id]
+            family['updatedAt'] = time.time()
+            save_data(data)
+
+    @with_lock
+    def _delete_member(self, code, member_id):
+        data = load_data()  # 锁内重新读最新数据
+        family = data.get('families', {}).get(code, None)
+        if family and member_id in family.get('members', {}):
+            del family['members'][member_id]
+            family['updatedAt'] = time.time()
+            save_data(data)
+
     def do_POST(self):
         parsed = urlparse(self.path)
         path = parsed.path
@@ -109,14 +178,7 @@ class FridgeHandler(BaseHTTPRequestHandler):
                 self.send_json({"ok": False, "error": "missing code or id"}, 400)
                 return
 
-            data = load_data()
-            if code not in data['families']:
-                data['families'][code] = {"members": {}, "notes": {}, "updatedAt": time.time()}
-
-            note['updatedAt'] = time.time()
-            data['families'][code]['notes'][note_id] = note
-            data['families'][code]['updatedAt'] = time.time()
-            save_data(data)
+            self._save_note(code, note_id, note)
             self.send_json({"ok": True})
             return
 
@@ -137,13 +199,7 @@ class FridgeHandler(BaseHTTPRequestHandler):
                 self.send_json({"ok": False, "error": "missing code or id"}, 400)
                 return
 
-            data = load_data()
-            if code not in data['families']:
-                data['families'][code] = {"members": {}, "notes": {}, "updatedAt": time.time()}
-
-            data['families'][code]['members'][member_id] = member
-            data['families'][code]['updatedAt'] = time.time()
-            save_data(data)
+            self._save_member(code, member_id, member)
             self.send_json({"ok": True})
             return
 
@@ -162,12 +218,7 @@ class FridgeHandler(BaseHTTPRequestHandler):
                 self.send_json({"ok": False, "error": "missing code or id"}, 400)
                 return
 
-            data = load_data()
-            family = data.get('families', {}).get(code, None)
-            if family and note_id in family.get('notes', {}):
-                del family['notes'][note_id]
-                family['updatedAt'] = time.time()
-                save_data(data)
+            self._delete_note(code, note_id)
             self.send_json({"ok": True})
             return
 
@@ -175,12 +226,7 @@ class FridgeHandler(BaseHTTPRequestHandler):
             code = params.get('code', [''])[0].upper()
             member_id = params.get('id', [''])[0]
 
-            data = load_data()
-            family = data.get('families', {}).get(code, None)
-            if family and member_id in family.get('members', {}):
-                del family['members'][member_id]
-                family['updatedAt'] = time.time()
-                save_data(data)
+            self._delete_member(code, member_id)
             self.send_json({"ok": True})
             return
 

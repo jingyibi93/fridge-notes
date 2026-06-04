@@ -159,13 +159,24 @@
       transition: transform 0.2s;
     }
     .note:hover .note-magnet { transform: translateX(-50%) rotate(var(--magnet-rotate, 0deg)) scale(1.15); }
-    .note.type-shopping { background: linear-gradient(175deg, #fffde7 0%, #fff9c4 40%, #fff59d 100%); }
-    .note.type-reminder { background: linear-gradient(175deg, #fff3e0 0%, #ffe0b2 40%, #ffcc80 100%); }
-    .note.type-message  { background: linear-gradient(175deg, #e8f5e9 0%, #c8e6c9 40%, #a5d6a7 100%); }
+    .note.type-shopping { background: linear-gradient(175deg, #fffde7 0%, #fff9c4 40%, #fff59d 100%); --note-bg: #fff59d; }
+    .note.type-reminder { background: linear-gradient(175deg, #fff3e0 0%, #ffe0b2 40%, #ffcc80 100%); --note-bg: #ffcc80; }
+    .note.type-message  { background: linear-gradient(175deg, #e8f5e9 0%, #c8e6c9 40%, #a5d6a7 100%); --note-bg: #a5d6a7; }
     .note-content {
       font-family: 'Ma Shan Zheng', cursive, sans-serif;
       font-size: min(16px, 3.8vw); line-height: 1.5; color: #2d2d2d;
       word-break: break-word; min-height: 24px;
+      max-height: 3.6em; overflow: hidden;
+      position: relative;
+    }
+    .note-content.has-more::after {
+      content: '…'; position: absolute; bottom: 0; right: 0;
+      padding-left: 12px;
+      background: linear-gradient(to right, transparent, var(--note-bg, #c8e6c9) 40%);
+    }
+    .note-comment-count {
+      font-size: min(11px, 2.8vw); color: rgba(0,0,0,0.35); margin-top: 2px;
+      display: flex; align-items: center; gap: 3px;
     }
     .note-meta {
       display: flex; justify-content: space-between; align-items: center;
@@ -284,6 +295,89 @@
       opacity: 0; transition: opacity 0.4s 0.5s;
     }
     #photoViewer.active .viewer-hint { opacity: 1; }
+
+    /* ===== NOTE READER (放大阅读 + 评论) ===== */
+    #noteReader {
+      position: fixed; top:0; left:0; width:100%; height:100%;
+      z-index: 600; display: none;
+      align-items: center; justify-content: center;
+    }
+    #noteReader.active { display: flex; }
+    .reader-bg {
+      position: absolute; top:0; left:0; width:100%; height:100%;
+      background: rgba(0,0,0,0);
+      transition: background 0.4s ease;
+    }
+    #noteReader.active .reader-bg {
+      background: rgba(15,15,25,0.6);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    }
+    .reader-card {
+      position: relative; z-index: 1;
+      width: min(380px, 90vw); max-height: 80vh;
+      background: #fffde7;
+      border-radius: 4px; padding: 28px 20px 16px;
+      opacity: 0; transform: scale(0.7) rotate(-2deg);
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    #noteReader.active .reader-card {
+      opacity: 1; transform: scale(1) rotate(0deg);
+    }
+    .reader-type {
+      position: absolute; top: 8px; left: 12px;
+      font-size: 16px;
+    }
+    .reader-text {
+      font-family: 'Ma Shan Zheng', cursive, sans-serif;
+      font-size: 20px; line-height: 1.7; color: #2d2d2d;
+      word-break: break-word;
+      white-space: pre-wrap;
+      margin-bottom: 12px;
+    }
+    .reader-meta {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 0; border-top: 1px dashed rgba(0,0,0,0.1);
+      border-bottom: 1px dashed rgba(0,0,0,0.1);
+      margin-bottom: 10px;
+    }
+    .reader-author { font-size: 13px; font-weight: 600; padding: 2px 8px; border-radius: 4px; background: rgba(0,0,0,0.04); }
+    .reader-time { font-size: 11px; color: rgba(0,0,0,0.3); }
+    .reader-comments {
+      max-height: 35vh; overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      margin-bottom: 10px;
+    }
+    .reader-comment {
+      padding: 6px 0; border-bottom: 1px solid rgba(0,0,0,0.04);
+      font-size: 13px; line-height: 1.5;
+    }
+    .reader-comment:last-child { border-bottom: none; }
+    .reader-comment-name {
+      font-weight: 600; font-size: 12px; margin-right: 6px;
+    }
+    .reader-comment-time {
+      font-size: 10px; color: rgba(0,0,0,0.25); margin-left: 6px;
+    }
+    .reader-input-wrap {
+      display: flex; gap: 8px;
+    }
+    .reader-input {
+      flex: 1; border: 1px solid rgba(0,0,0,0.1); border-radius: 6px;
+      padding: 8px 12px; font-size: 14px; outline: none;
+      background: rgba(255,255,255,0.6);
+      font-family: 'Ma Shan Zheng', cursive, sans-serif;
+    }
+    .reader-input:focus { border-color: rgba(0,0,0,0.25); }
+    .reader-send {
+      border: none; border-radius: 6px; padding: 8px 14px;
+      background: rgba(0,0,0,0.08); color: #333;
+      font-size: 13px; cursor: pointer;
+      transition: background 0.15s;
+    }
+    .reader-send:active { background: rgba(0,0,0,0.18); }
 
     /* ===== FLOATING UI ===== */
     .fab {
@@ -735,6 +829,24 @@
   <div class="viewer-hint">向下滑动放回冰箱</div>
 </div>
 
+<!-- Note Reader (放大阅读 + 评论) -->
+<div id="noteReader">
+  <div class="reader-bg" id="readerBg"></div>
+  <div class="reader-card" id="readerCard">
+    <div class="reader-type" id="readerType"></div>
+    <div class="reader-text" id="readerText"></div>
+    <div class="reader-meta">
+      <span class="reader-author" id="readerAuthor"></span>
+      <span class="reader-time" id="readerTime"></span>
+    </div>
+    <div class="reader-comments" id="readerComments"></div>
+    <div class="reader-input-wrap">
+      <input type="text" class="reader-input" id="readerInput" placeholder="写评论...">
+      <button class="reader-send" id="readerSend">发送</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 <input type="file" id="photoInput" accept="image/*">
 
@@ -988,7 +1100,23 @@
     el.className='note pinned '+ti.cls;
     el.querySelector('.note-magnet').textContent=MAGNET_STYLES[n.magnetStyle!==undefined?n.magnetStyle:0].emoji;
     el.querySelector('.note-type-badge').textContent=ti.emoji;
-    el.querySelector('.note-content').textContent=n.text||'';
+    var contentEl=el.querySelector('.note-content');
+    contentEl.textContent=n.text||'';
+    if(contentEl.scrollHeight>contentEl.clientHeight+2){
+      contentEl.classList.add('has-more');
+    }else{
+      contentEl.classList.remove('has-more');
+    }
+    var comments=n.comments||[];
+    var commentCountEl=el.querySelector('.note-comment-count');
+    if(commentCountEl){
+      if(comments.length>0){
+        commentCountEl.style.display='flex';
+        commentCountEl.querySelector('span').textContent=comments.length;
+      }else{
+        commentCountEl.style.display='none';
+      }
+    }
     el.querySelector('.note-author').textContent=n.authorName||'';
     el.querySelector('.note-author').style.color=n.authorColor||'#666';
     el.querySelector('.note-time').textContent=formatTime(n.time||Date.now());
@@ -1034,11 +1162,13 @@
     if(!el){
       el=document.createElement('div');
       el.className='note pinned'; el.dataset.noteId=id;
-      el.innerHTML='<div class="note-magnet"></div><div class="note-type-badge"></div><button class="note-delete">&times;</button><div class="note-content"></div><div class="note-meta"><span class="note-author"></span><span class="note-time"></span></div>';
+      el.innerHTML='<div class="note-magnet"></div><div class="note-type-badge"></div><button class="note-delete">&times;</button><div class="note-content"></div><div class="note-comment-count" style="display:none">💬 <span></span></div><div class="note-meta"><span class="note-author"></span><span class="note-time"></span></div>';
       container.appendChild(el); noteElements[id]=el;
       bindDrag(el,id);
       el.querySelector('.note-delete').addEventListener('click',function(e){e.stopPropagation();deleteNote(id);});
       el.querySelector('.note-delete').addEventListener('touchend',function(e){e.preventDefault();e.stopPropagation();deleteNote(id);});
+      el.querySelector('.note-content').addEventListener('click',function(e){e.stopPropagation();openNoteReader(id);});
+      el.querySelector('.note-content').addEventListener('touchend',function(e){e.preventDefault();e.stopPropagation();openNoteReader(id);});
     }
     var ti=TYPE_INFO[n.type]||TYPE_INFO.message;
     el.className='note pinned '+ti.cls;
@@ -1051,7 +1181,23 @@
     el.style.setProperty('--magnet-rotate',(n.magnetRotate||0)+'deg');
     el.querySelector('.note-magnet').textContent=MAGNET_STYLES[ms2].emoji;
     el.querySelector('.note-type-badge').textContent=ti.emoji;
-    el.querySelector('.note-content').textContent=n.text||'';
+    var contentEl=el.querySelector('.note-content');
+    contentEl.textContent=n.text||'';
+    // 检查文字是否溢出
+    if(contentEl.scrollHeight>contentEl.clientHeight+2){
+      contentEl.classList.add('has-more');
+    }else{
+      contentEl.classList.remove('has-more');
+    }
+    // 评论数量
+    var comments=n.comments||[];
+    var commentCountEl=el.querySelector('.note-comment-count');
+    if(comments.length>0){
+      commentCountEl.style.display='flex';
+      commentCountEl.querySelector('span').textContent=comments.length;
+    }else{
+      commentCountEl.style.display='none';
+    }
     el.querySelector('.note-author').textContent=n.authorName||'';
     el.querySelector('.note-author').style.color=n.authorColor||'#666';
     el.querySelector('.note-time').textContent=formatTime(n.time||Date.now());
@@ -1232,6 +1378,80 @@
   document.addEventListener('mousemove',viewerMoveH);
   document.addEventListener('touchend',viewerEndH);
   document.addEventListener('mouseup',viewerEndH);
+
+  // ===== 便签阅读器 (放大阅读 + 评论) =====
+  var noteReader=document.getElementById('noteReader');
+  var readerBg=document.getElementById('readerBg');
+  var readerCard=document.getElementById('readerCard');
+  var readerCurrentId=null;
+
+  function openNoteReader(id){
+    var n=notes[id]; if(!n)return;
+    readerCurrentId=id;
+    var ti=TYPE_INFO[n.type]||TYPE_INFO.message;
+    document.getElementById('readerType').textContent=ti.emoji;
+    document.getElementById('readerText').textContent=n.text||'';
+    document.getElementById('readerAuthor').textContent=n.authorName||'';
+    document.getElementById('readerAuthor').style.color=n.authorColor||'#666';
+    document.getElementById('readerTime').textContent=formatTime(n.time||Date.now());
+    // 便签背景色
+    var bgMap={'type-shopping':'#fffde7','type-reminder':'#fff3e0','type-message':'#e8f5e9'};
+    readerCard.style.background=bgMap[ti.cls]||'#fffde7';
+    renderComments(id);
+    noteReader.classList.add('active');
+    document.getElementById('readerInput').value='';
+  }
+  function closeNoteReader(){
+    noteReader.classList.remove('active');
+    readerCurrentId=null;
+  }
+  function renderComments(id){
+    var n=notes[id]; if(!n)return;
+    var comments=n.comments||[];
+    var container=document.getElementById('readerComments');
+    container.innerHTML='';
+    comments.forEach(function(c){
+      var div=document.createElement('div');
+      div.className='reader-comment';
+      var nameSpan='<span class="reader-comment-name" style="color:'+c.authorColor+'">'+(c.authorName||'匿名')+'</span>';
+      var timeSpan='<span class="reader-comment-time">'+formatTime(c.time)+'</span>';
+      div.innerHTML=nameSpan+c.text+timeSpan;
+      container.appendChild(div);
+    });
+    container.scrollTop=container.scrollHeight;
+  }
+  async function addComment(){
+    if(!readerCurrentId)return;
+    var input=document.getElementById('readerInput');
+    var text=input.value.trim();
+    if(!text)return;
+    var n=notes[readerCurrentId]; if(!n)return;
+    if(!n.comments)n.comments=[];
+    n.comments.push({
+      authorId:myId, authorName:myName, authorColor:myColor,
+      text:text, time:Date.now()
+    });
+    input.value='';
+    renderComments(readerCurrentId);
+    saveLocal();
+    // 保存到服务器
+    await saveNoteToServer(readerCurrentId,n);
+    // 更新冰箱上的评论计数
+    var el=noteElements[readerCurrentId];
+    if(el){
+      var commentCountEl=el.querySelector('.note-comment-count');
+      if(commentCountEl){
+        commentCountEl.style.display='flex';
+        commentCountEl.querySelector('span').textContent=n.comments.length;
+      }
+    }
+  }
+  readerBg.addEventListener('click',closeNoteReader);
+  document.getElementById('readerSend').addEventListener('click',addComment);
+  document.getElementById('readerSend').addEventListener('touchend',function(e){e.preventDefault();addComment();});
+  document.getElementById('readerInput').addEventListener('keydown',function(e){
+    if(e.key==='Enter'){e.preventDefault();addComment();}
+  });
 
   // ===== UI =====
   function updateUI(){

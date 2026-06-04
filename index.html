@@ -903,7 +903,7 @@
             serverNoteIds.forEach(function(nid){
               if(nid in pendingSaves)return; // 跳过当前正在保存的
               var n=result.family.notes[nid];
-              if(n._deleted){delete notes[nid];removeNoteEl(nid);}
+              if(n._deleted){delete notes[nid];removeNoteEl(nid);serverDeletedIds[nid]=Date.now();}
               else{
                 normalizeNotePos(n);
                 var localNote=notes[nid];

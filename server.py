@@ -145,8 +145,17 @@ class FridgeHandler(BaseHTTPRequestHandler):
         data = load_data()
         family = data.get('families', {}).get(code, None)
         if family and note_id in family.get('notes', {}):
-            del family['notes'][note_id]
+            # 不直接删除，标记为_deleted，让其他客户端同步时能看到此note已被删除
+            family['notes'][note_id]['_deleted'] = True
+            family['notes'][note_id]['deletedAt'] = time.time()
+            family['notes'][note_id]['updatedAt'] = time.time()
             family['updatedAt'] = time.time()
+            # 清理超过1小时的已删除便签，释放存储
+            now = time.time()
+            to_purge = [nid for nid, n in family.get('notes', {}).items()
+                        if n.get('_deleted') and now - n.get('deletedAt', 0) > 3600]
+            for nid in to_purge:
+                del family['notes'][nid]
             save_data(data)
 
     @with_lock

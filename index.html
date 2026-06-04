@@ -774,6 +774,8 @@
   var syncing=false; // 同步锁，防止并发同步
   var syncCount=0; // 同步计数，定期做全量校验
   var FULL_SYNC_EVERY=5; // 每5次同步做一次全量
+  var evtSource=null; // SSE实时连接
+  var sseConnected=false; // SSE是否已连接
 
   var LEGACY_REF_W=1400, LEGACY_REF_H=900;
   function normalizeNotePos(n) {
@@ -927,7 +929,72 @@
       }else{isOnline=false;dot.classList.add('offline');document.getElementById('offlineBanner').classList.add('visible');}
     }finally{syncing=false;}
   }
-  function startSync(){if(syncTimer)clearInterval(syncTimer);syncFromServer();syncTimer=setInterval(syncFromServer,800);}
+  function startSync(){
+    if(syncTimer)clearInterval(syncTimer);
+    syncFromServer();
+    // SSE连接：实时推送，拖动/新增/删除即时同步
+    connectSSE();
+    // 轮询兜底：SSE断开时频率800ms，SSE正常时5秒一次保底
+    syncTimer=setInterval(syncFromServer,sseConnected?5000:800);
+  }
+
+  function connectSSE(){
+    if(evtSource){try{evtSource.close();}catch(e){}}
+    if(!familyCode)return;
+    try{
+      evtSource=new EventSource(API+'/api/events?code='+familyCode);
+      evtSource.addEventListener('note_update',function(e){
+        try{
+          var data=JSON.parse(e.data);
+          var nid=data.id, n=data.note;
+          if(!nid||!n||nid in pendingSaves)return;
+          if(n._deleted){delete notes[nid];removeNoteEl(nid);}
+          else{
+            normalizeNotePos(n);
+            notes[nid]=n;
+            if(noteElements[nid]){updateNoteContent(nid);}
+            else{renderNote(nid);}
+          }
+          saveLocal();updateUI();
+        }catch(ex){}
+      });
+      evtSource.addEventListener('note_delete',function(e){
+        try{
+          var data=JSON.parse(e.data);
+          var nid=data.id;
+          if(nid){delete notes[nid];removeNoteEl(nid);saveLocal();updateUI();}
+        }catch(ex){}
+      });
+      evtSource.addEventListener('member_update',function(e){
+        try{
+          var data=JSON.parse(e.data);
+          if(data.id&&data.member){members[data.id]=data.member;saveLocal();updateUI();}
+        }catch(ex){}
+      });
+      evtSource.addEventListener('member_delete',function(e){
+        try{
+          var data=JSON.parse(e.data);
+          if(data.id){delete members[data.id];saveLocal();updateUI();}
+        }catch(ex){}
+      });
+      evtSource.onopen=function(){
+        sseConnected=true;
+        // SSE连上后降低轮询频率到5秒
+        if(syncTimer)clearInterval(syncTimer);
+        syncTimer=setInterval(syncFromServer,5000);
+        var dot=document.getElementById('syncDot');
+        if(dot){dot.classList.remove('offline');}
+      };
+      evtSource.onerror=function(){
+        sseConnected=false;
+        // SSE断开，提高轮询频率到800ms
+        if(syncTimer)clearInterval(syncTimer);
+        syncTimer=setInterval(syncFromServer,800);
+      };
+    }catch(e){
+      sseConnected=false;
+    }
+  }
   // 时间痕迹：每60秒刷新一次所有便签的不透明度（冰箱慢慢变老）
   var ageTimer=null;
   function startAgeTick(){if(ageTimer)clearInterval(ageTimer);refreshAllAgeOpacity();ageTimer=setInterval(refreshAllAgeOpacity,60000);}
@@ -1353,6 +1420,7 @@
     delete members[myId];familyCode='';myId='';myName='';notes={};
     Object.keys(noteElements).forEach(function(id){var el=noteElements[id];if(el.parentNode)el.parentNode.removeChild(el);});
     noteElements={};document.getElementById('memberPanel').classList.remove('active');
+    if(evtSource){try{evtSource.close();}catch(e){}evtSource=null;sseConnected=false;}
     if(syncTimer)clearInterval(syncTimer);saveLocal();updateUI();showToast('已离开');
   });
   document.getElementById('btnCopy').addEventListener('click',function(){if(!familyCode)return;if(navigator.clipboard){navigator.clipboard.writeText(familyCode).then(function(){showToast('已复制：'+familyCode);});}else showToast(familyCode);});
@@ -1465,6 +1533,7 @@
     familyCode='';myId='';myName='';members={};notes={};
     Object.keys(noteElements).forEach(function(id){var el=noteElements[id];if(el.parentNode)el.parentNode.removeChild(el);});
     noteElements={};document.getElementById('memberPanel').classList.remove('active');
+    if(evtSource){try{evtSource.close();}catch(e){}evtSource=null;sseConnected=false;}
     if(syncTimer)clearInterval(syncTimer);saveLocal();updateUI();showToast('已离开');showLanding();
   });
 

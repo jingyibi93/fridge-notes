@@ -1567,7 +1567,7 @@
     // 提取评论中的@提及
     var commentMentions=[];
     Object.keys(members).forEach(function(mid){
-      var m=members[mid];if(m._left)return;
+      var m=members[mid];
       var name=m.name||'';
       if(name && text.indexOf('@'+name)!==-1 && commentMentions.indexOf(mid)===-1){
         commentMentions.push(mid);
@@ -1713,7 +1713,7 @@
     // 提取@提及的成员ID
     var mentions=[];
     Object.keys(members).forEach(function(mid){
-      var m=members[mid];if(m._left)return;
+      var m=members[mid];
       var name=m.name||'';
       if(name && text.indexOf('@'+name)!==-1 && mentions.indexOf(mid)===-1){
         mentions.push(mid);
@@ -1924,10 +1924,10 @@
     Object.keys(members).forEach(function(mid){
       var m=members[mid];
       if(mid===myId)return; // 不@自己
-      if(m._left)return; // 不@已离开的成员
       var name=m.name||'';
+      var left=m._left?true:false;
       if(name && name.toLowerCase().indexOf(query.toLowerCase())===0){
-        opts.push({id:mid,name:name,color:m.color});
+        opts.push({id:mid,name:name,color:m.color,left:left});
       }
     });
     if(!opts.length){hideMentionDropdown();return;}
@@ -1935,7 +1935,8 @@
     opts.forEach(function(o){
       var div=document.createElement('div');
       div.className='mention-option';
-      div.innerHTML='<div class="mention-option-color" style="background:'+o.color+'"></div>@'+o.name;
+      var leftTag=o.left?' <span style="opacity:0.5;font-size:0.85em">(已离开)</span>':'';
+      div.innerHTML='<div class="mention-option-color" style="background:'+o.color+'"></div>@'+o.name+leftTag;
       div.addEventListener('mousedown',function(e){e.preventDefault();selectMention(o,atIdx);});
       div.addEventListener('touchend',function(e){e.preventDefault();selectMention(o,atIdx);});
       mentionDropdown.appendChild(div);
@@ -1997,10 +1998,10 @@
     Object.keys(members).forEach(function(mid){
       var m=members[mid];
       if(mid===myId)return;
-      if(m._left)return;
       var name=m.name||'';
+      var left=m._left?true:false;
       if(name && name.toLowerCase().indexOf(query.toLowerCase())===0){
-        opts.push({id:mid,name:name,color:m.color});
+        opts.push({id:mid,name:name,color:m.color,left:left});
       }
     });
     if(!opts.length){hideCommentMentionDropdown();return;}
@@ -2008,7 +2009,8 @@
     opts.forEach(function(o){
       var div=document.createElement('div');
       div.className='mention-option';
-      div.innerHTML='<div class="mention-option-color" style="background:'+o.color+'"></div>@'+o.name;
+      var leftTag=o.left?' <span style="opacity:0.5;font-size:0.85em">(已离开)</span>':'';
+      div.innerHTML='<div class="mention-option-color" style="background:'+o.color+'"></div>@'+o.name+leftTag;
       div.addEventListener('mousedown',function(e){e.preventDefault();selectCommentMention(o,atIdx);});
       div.addEventListener('touchend',function(e){e.preventDefault();selectCommentMention(o,atIdx);});
       commentMentionDropdown.appendChild(div);

@@ -125,10 +125,12 @@ class FridgeHandler(BaseHTTPRequestHandler):
         data = load_data()  # 锁内重新读最新数据
         if code not in data['families']:
             data['families'][code] = {"members": {}, "notes": {}, "updatedAt": time.time()}
-        note['updatedAt'] = time.time()
+        server_now = time.time()
+        note['updatedAt'] = server_now
         data['families'][code]['notes'][note_id] = note
-        data['families'][code]['updatedAt'] = time.time()
+        data['families'][code]['updatedAt'] = server_now
         save_data(data)
+        return server_now
 
     @with_lock
     def _save_member(self, code, member_id, member):
@@ -178,8 +180,8 @@ class FridgeHandler(BaseHTTPRequestHandler):
                 self.send_json({"ok": False, "error": "missing code or id"}, 400)
                 return
 
-            self._save_note(code, note_id, note)
-            self.send_json({"ok": True})
+            updated_at = self._save_note(code, note_id, note)
+            self.send_json({"ok": True, "updatedAt": updated_at})
             return
 
         if path == '/api/member':

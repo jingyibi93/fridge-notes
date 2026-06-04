@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>冰箱便签</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&display=swap');
+    * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      overflow: hidden; touch-action: none;
+      -webkit-user-select: none; user-select: none;
+      background: #1a1a2e;
+    }
+
+    /* ===== BACKGROUND LAYER ===== */
+    #bgLayer {
+      position: fixed; top:0; left:0; width:100%; height:100%;
+      background: linear-gradient(145deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      z-index: 0;
+    }
+    #bgLayer::after {
+      content: ''; position: absolute; top:0; left:0; width:100%; height:100%;
+      opacity: 0.035;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      background-size: 200px 200px;
+      pointer-events: none;
+    }
+
+    /* ===== FRIDGE SURFACE ===== */
+    #fridge {
+      position: fixed; top: 3%; left: 3%; right: 3%; bottom: 3%;
+      border-radius: 28px;
+      background: linear-gradient(170deg,
+        #e8eaed 0%, #dfe1e5 8%, #d5d8dc 20%,
+        #cdcfd3 40%, #c8cbd0 60%, #d0d3d8 80%,
+        #d8dade 92%, #e0e3e7 100%);
+      overflow: hidden; z-index: 1;
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.15),
+        0 4px 16px rgba(0,0,0,0.3),
+        0 12px 48px rgba(0,0,0,0.25),
+        inset 0 1px 0 rgba(255,255,255,0.3),
+        inset 0 -1px 0 rgba(0,0,0,0.05);
+      transform: scale(0.82); filter: blur(8px); opacity: 0;
+      animation: fridgeEnter 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards;
+    }
+    @keyframes fridgeEnter {
+      0% { transform: scale(0.82); filter: blur(8px); opacity: 0; }
+      60% { opacity: 1; }
+      100% { transform: scale(1); filter: blur(0px); opacity: 1; }
+    }
+    #fridge::before {
+      content: ''; position: absolute; top:0; left:0; width:100%; height:100%;
+      background:
+        repeating-linear-gradient(90deg, transparent, transparent 59px, rgba(0,0,0,0.018) 59px, rgba(0,0,0,0.018) 60px),
+        repeating-linear-gradient(0deg, transparent, transparent 59px, rgba(0,0,0,0.018) 59px, rgba(0,0,0,0.018) 60px);
+      pointer-events: none; z-index: 0;
+    }
+    #fridge::after {
+      content: ''; position: absolute; top:0; left:0; right:0; bottom:0;
+      border-radius: 28px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.08) 15%, transparent 40%, transparent 100%);
+      pointer-events: none; z-index: 0;
+    }
+    .fridge-handle {
+      position: absolute; right: 1.5%; top: 18%; height: 64%; width: 14px;
+      background: linear-gradient(90deg, #a8acb0, #c8ccd0, #b8bcc0, #d0d4d8, #a8acb0);
+      border-radius: 7px;
+      box-shadow: 2px 2px 8px rgba(0,0,0,0.18), inset 1px 0 3px rgba(255,255,255,0.4), inset -1px 0 2px rgba(0,0,0,0.1);
+      z-index: 1;
+    }
+    .fridge-handle::before {
+      content:''; position:absolute; top:10px; left:3px; right:3px; bottom:10px;
+      background: linear-gradient(90deg, #bcc0c4, #d8dce0, #c0c4c8);
+      border-radius: 4px; box-shadow: inset 0 1px 1px rgba(255,255,255,0.5);
+    }
+    .fridge-brand {
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      z-index:1;
+    }
+    .fridge-display {
+      background: linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%);
+      border-radius: 8px; padding: 6px 18px;
+      border: 1px solid rgba(0,0,0,0.3);
+      box-shadow: inset 0 1px 4px rgba(0,0,0,0.5), 0 1px 2px rgba(255,255,255,0.08);
+      text-align: center; min-width: 160px;
+    }
+    .fridge-display-date {
+      font-size: 11px; letter-spacing: 1px; color: rgba(100,255,150,0.7);
+      font-family: 'Courier New', monospace; font-weight: 400;
+    }
+    .fridge-display-time {
+      font-size: 20px; letter-spacing: 2px; color: rgba(100,255,150,0.9);
+      font-family: 'Courier New', monospace; font-weight: 700;
+      text-shadow: 0 0 8px rgba(100,255,150,0.4);
+    }
+
+    /* ===== 动效 keyframes ===== */
+    @keyframes noteStick {
+      0%   { transform: scale(1.08) rotate(var(--note-rotate, 0deg)); box-shadow: 0 8px 20px rgba(0,0,0,0.25); }
+      40%  { transform: scale(0.96) rotate(var(--note-rotate, 0deg)); box-shadow: 0 3px 8px rgba(0,0,0,0.12); }
+      65%  { transform: scale(1.02) rotate(var(--note-rotate, 0deg)); box-shadow: 0 4px 10px rgba(0,0,0,0.14); }
+      100% { transform: scale(1) rotate(var(--note-rotate, 0deg)); }
+    }
+    @keyframes magnetSnap {
+      0%   { transform: translate(0,0) rotate(var(--note-rotate, 0deg)); }
+      20%  { transform: translate(-1.5px, 0.5px) rotate(calc(var(--note-rotate, 0deg) - 0.3deg)); }
+      40%  { transform: translate(1px, -0.5px) rotate(calc(var(--note-rotate, 0deg) + 0.2deg)); }
+      60%  { transform: translate(-0.5px, 0.3px) rotate(var(--note-rotate, 0deg)); }
+      80%  { transform: translate(0.3px, -0.2px) rotate(var(--note-rotate, 0deg)); }
+      100% { transform: translate(0,0) rotate(var(--note-rotate, 0deg)); }
+    }
+    @keyframes notePeel {
+      0%   { transform: rotate(var(--note-rotate, 0deg)); transform-origin: bottom right; opacity: 1; }
+      15%  { transform: rotate(calc(var(--note-rotate, 0deg) + 3deg)) skewX(-2deg); transform-origin: bottom right; }
+      50%  { transform: rotate(calc(var(--note-rotate, 0deg) + 12deg)) skewX(-5deg) scale(0.95); transform-origin: bottom right; opacity: 0.7; }
+      100% { transform: rotate(calc(var(--note-rotate, 0deg) + 20deg)) skewX(-8deg) scale(0.8) translateY(-20px); transform-origin: bottom right; opacity: 0; }
+    }
+    @keyframes ghostFade { 0% { opacity: 0.15; } 100% { opacity: 0; } }
+    .note-ghost {
+      position: absolute; pointer-events: none;
+      background: rgba(200,200,210,0.18); border-radius: 2px;
+      animation: ghostFade 0.35s ease-out forwards;
+    }
+
+    /* ===== TEXT NOTES (底层：便签纸，磁铁贴冰箱) ===== */
+    .note {
+      position: absolute;
+      width: min(160px, 42vw); min-height: min(105px, 24vw);
+      padding: 30px 14px 14px; border-radius: 2px 2px 1px 1px;
+      cursor: grab; z-index: 5;
+      --note-rotate: 0deg;
+      transition: box-shadow 0.25s cubic-bezier(0.4,0,0.2,1), filter 0.25s ease, opacity 2s ease;
+      touch-action: none; will-change: transform;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .note:hover {
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1), 0 4px 8px rgba(0,0,0,0.1), 0 8px 24px rgba(0,0,0,0.15), 0 0 20px rgba(255,255,255,0.08);
+      filter: brightness(1.02); opacity: 1 !important;
+    }
+    .note.dragging {
+      cursor: grabbing; z-index: 50;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1), 0 12px 24px rgba(0,0,0,0.15), 0 24px 48px rgba(0,0,0,0.18), 0 0 30px rgba(255,255,255,0.06);
+      transform: scale(1.06) rotate(0deg) !important; filter: brightness(1.04);
+    }
+    .note.sticking { animation: noteStick 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; pointer-events: none; }
+    .note.snapping { animation: magnetSnap 0.25s ease-out forwards; }
+    .note.peeling  { animation: notePeel 0.35s ease-in forwards; pointer-events: none; }
+    .note.pinned { z-index: 8; }
+    .note-magnet {
+      position: absolute; top: -14px; left: 50%; transform: translateX(-50%) rotate(var(--magnet-rotate, 0deg));
+      width: 28px; height: 28px;
+      font-size: 20px; line-height: 28px; text-align: center;
+      z-index: 2;
+      filter: drop-shadow(0 2px 3px rgba(0,0,0,0.35));
+      transition: transform 0.2s;
+    }
+    .note:hover .note-magnet { transform: translateX(-50%) rotate(var(--magnet-rotate, 0deg)) scale(1.15); }
+    .note.type-shopping { background: linear-gradient(175deg, #fffde7 0%, #fff9c4 40%, #fff59d 100%); }
+    .note.type-reminder { background: linear-gradient(175deg, #fff3e0 0%, #ffe0b2 40%, #ffcc80 100%); }
+    .note.type-message  { background: linear-gradient(175deg, #e8f5e9 0%, #c8e6c9 40%, #a5d6a7 100%); }
+    .note-content {
+      font-family: 'Ma Shan Zheng', cursive, sans-serif;
+      font-size: min(16px, 3.8vw); line-height: 1.5; color: #2d2d2d;
+      word-break: break-word; min-height: 24px;
+    }
+    .note-meta {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-top: 6px; padding-top: 5px; border-top: 1px dashed rgba(0,0,0,0.08);
+    }
+    .note-author { font-size: min(11px, 2.8vw); font-weight: 600; padding: 1px 7px; border-radius: 4px; background: rgba(0,0,0,0.03); }
+    .note-time   { font-size: min(10px, 2.5vw); color: rgba(0,0,0,0.25); }
+    .note-type-badge { position: absolute; top: 7px; left: 10px; font-size: min(14px, 3.5vw); }
+    .note-delete {
+      position: absolute; top: 5px; right: 6px;
+      width: 22px; height: 22px; border-radius: 50%; border: none;
+      background: rgba(0,0,0,0.06); color: rgba(0,0,0,0.25);
+      font-size: 14px; cursor: pointer;
+      display: none; align-items: center; justify-content: center; transition: all 0.15s;
+    }
+    .note:hover .note-delete, .note.dragging .note-delete { display: flex; }
+    .note-delete:active { background: rgba(231,76,60,0.25); color: #e74c3c; transform: scale(1.15); }
+    @media (max-width: 768px) { .note-delete, .photo-magnet .photo-del { display: flex !important; } }
+
+    /* ===== PHOTO MAGNET (顶层：冰箱贴，叠在便签之上) ===== */
+    .photo-magnet {
+      position: absolute;
+      width: 76px; height: 76px;
+      cursor: grab; z-index: 20;
+      --note-rotate: 0deg;
+      transition: box-shadow 0.25s cubic-bezier(0.4,0,0.2,1), filter 0.25s ease, opacity 2s ease;
+      touch-action: none; will-change: transform;
+    }
+    .photo-magnet:hover { filter: brightness(1.05); opacity: 1 !important; }
+    .photo-magnet.dragging {
+      cursor: grabbing; z-index: 200;
+      transform: scale(1.1) rotate(0deg) !important; filter: brightness(1.06);
+    }
+    .photo-magnet.sticking { animation: noteStick 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; pointer-events: none; }
+    .photo-magnet.snapping { animation: magnetSnap 0.25s ease-out forwards; }
+    .photo-magnet.peeling  { animation: notePeel 0.35s ease-in forwards; pointer-events: none; }
+    /* 白色边框 + 手绘阴影 */
+    .photo-inner {
+      width: 100%; height: 100%;
+      border: 3px solid #fff;
+      border-radius: 3px;
+      overflow: hidden;
+      position: relative;
+      /* 手绘贴纸阴影 - 多层偏移 */
+      box-shadow:
+        2px 3px 0 rgba(0,0,0,0.06),
+        3px 4px 0 rgba(0,0,0,0.04),
+        4px 6px 8px rgba(0,0,0,0.12),
+        0 1px 3px rgba(0,0,0,0.08);
+    }
+    .photo-inner img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+      pointer-events: none;
+    }
+    .photo-magnet .photo-magnet-dot {
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%) rotate(var(--magnet-rotate, 0deg));
+      width: 26px; height: 26px;
+      font-size: 18px; line-height: 26px; text-align: center;
+      z-index: 2;
+      filter: drop-shadow(0 2px 3px rgba(0,0,0,0.35));
+      transition: transform 0.2s;
+    }
+    .photo-magnet:hover .photo-magnet-dot { transform: translateX(-50%) rotate(var(--magnet-rotate, 0deg)) scale(1.15); }
+    .photo-del {
+      position: absolute; top: -4px; right: -4px;
+      width: 20px; height: 20px; border-radius: 50%; border: none;
+      background: rgba(0,0,0,0.5); color: #fff;
+      font-size: 12px; cursor: pointer; z-index: 5;
+      display: none; align-items: center; justify-content: center; transition: all 0.15s;
+    }
+    .photo-magnet:hover .photo-del, .photo-magnet.dragging .photo-del { display: flex; }
+    .photo-del:active { background: rgba(231,76,60,0.7); transform: scale(1.15); }
+    .photo-author {
+      position: absolute; bottom: -2px; left: 50%; transform: translateX(-50%);
+      font-size: 8px; color: rgba(0,0,0,0.35); white-space: nowrap;
+      background: rgba(255,255,255,0.7); padding: 0 3px; border-radius: 2px;
+    }
+
+    /* ===== FULLSCREEN PHOTO VIEWER ===== */
+    #photoViewer {
+      position: fixed; top:0; left:0; width:100%; height:100%;
+      z-index: 500; display: none;
+      align-items: center; justify-content: center;
+    }
+    #photoViewer.active { display: flex; }
+    .viewer-bg {
+      position: absolute; top:0; left:0; width:100%; height:100%;
+      background: rgba(0,0,0,0);
+      transition: background 0.4s ease;
+    }
+    #photoViewer.active .viewer-bg {
+      background: rgba(15,15,25,0.7);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    }
+    .viewer-img-wrap {
+      position: relative; z-index: 1;
+      max-width: 90vw; max-height: 80vh;
+      opacity: 0; transform: scale(0.5);
+      transition: all 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+      border: 4px solid #fff; border-radius: 6px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      cursor: grab;
+    }
+    #photoViewer.active .viewer-img-wrap {
+      opacity: 1; transform: scale(1);
+    }
+    .viewer-img-wrap img {
+      display: block; max-width: 90vw; max-height: 80vh;
+      border-radius: 3px;
+    }
+    .viewer-hint {
+      position: absolute; bottom: calc(5% + env(safe-area-inset-bottom));
+      left: 50%; transform: translateX(-50%);
+      color: rgba(255,255,255,0.4); font-size: 12px;
+      z-index: 2; pointer-events: none;
+      opacity: 0; transition: opacity 0.4s 0.5s;
+    }
+    #photoViewer.active .viewer-hint { opacity: 1; }
+
+    /* ===== FLOATING UI ===== */
+    .fab {
+      position: fixed; bottom: calc(28px + env(safe-area-inset-bottom)); right: 24px;
+      width: 56px; height: 56px; border-radius: 18px; border: none;
+      background: linear-gradient(135deg, #e74c3c, #c0392b);
+      color: #fff; font-size: 24px; cursor: pointer; z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 12px rgba(231,76,60,0.4), 0 8px 24px rgba(231,76,60,0.2);
+      transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+      opacity: 0; animation: uiFadeIn 0.5s ease 0.85s forwards;
+    }
+    .fab:active { transform: scale(0.92); box-shadow: 0 2px 8px rgba(231,76,60,0.3); }
+    .top-pill {
+      position: fixed; bottom: calc(20px + env(safe-area-inset-bottom)); left: 20px;
+      background: rgba(40,40,55,0.85);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      padding: 6px 16px; border-radius: 20px;
+      display: flex; align-items: center; gap: 8px; z-index: 200;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.08);
+      opacity: 0; animation: uiFadeIn 0.5s ease 0.9s forwards;
+    }
+    @keyframes uiFadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+    .member-avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; color: #fff;
+      border: 2px solid rgba(255,255,255,0.2); cursor: pointer; transition: transform 0.15s;
+    }
+    .member-avatar:active { transform: scale(0.9); }
+    .family-badge { font-size: 12px; color: rgba(255,255,255,0.6); letter-spacing: 1px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #2ecc71; animation: pulse 2s ease-in-out infinite; }
+    .sync-dot.offline { background: #e74c3c; animation: none; }
+    @keyframes pulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+    .btn-top-icon {
+      width: 28px; height: 28px; border-radius: 50%; border: none;
+      background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6);
+      font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s;
+    }
+    .btn-top-icon:active { background: rgba(255,255,255,0.2); transform: scale(0.9); }
+
+    /* ===== BOTTOM SHEET ===== */
+    .sheet-overlay {
+      position: fixed; top:0; left:0; width:100%; height:100%;
+      background: rgba(0,0,0,0.4); z-index: 1100; display: none;
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    }
+    .sheet-overlay.active { display: block; }
+    .sheet {
+      position: fixed; bottom: 0; left: 0; width: 100%;
+      background: #fff; border-radius: 20px 20px 0 0;
+      padding: 8px 0 calc(20px + env(safe-area-inset-bottom));
+      z-index: 1101; transform: translateY(100%);
+      transition: transform 0.35s cubic-bezier(0.32,0.72,0,1);
+      max-height: 80vh;
+      box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
+    }
+    .sheet.active { transform: translateY(0); }
+    .sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: rgba(0,0,0,0.12); margin: 4px auto 16px; }
+    .sheet-title { font-size: 17px; font-weight: 700; color: #222; padding: 0 20px 14px; }
+    .sheet-body { padding: 0 20px; }
+    .sheet-body textarea {
+      width: 100%; height: 80px; border: 1.5px solid #e0e0e0;
+      border-radius: 12px; padding: 12px; font-size: 16px;
+      font-family: 'Ma Shan Zheng', cursive, sans-serif;
+      resize: none; outline: none; color: #222; background: #fafafa; transition: border-color 0.2s;
+    }
+    .sheet-body textarea:focus { border-color: #e74c3c; background: #fff; }
+    .type-selector { display: flex; gap: 10px; margin-top: 14px; }
+    .type-option {
+      flex: 1; padding: 12px 4px 10px; border-radius: 14px;
+      border: 2px solid #eee; text-align: center; cursor: pointer; transition: all 0.15s;
+    }
+    .type-option:active { transform: scale(0.96); }
+    .type-option.selected { border-color: #333; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .type-option .type-emoji { font-size: 22px; display: block; margin-bottom: 3px; }
+    .type-option .type-label { font-size: 11px; color: #666; }
+    .type-shopping-opt { background: #fff9c4; } .type-shopping-opt.selected { border-color: #f9a825; }
+    .type-reminder-opt { background: #ffe0b2; } .type-reminder-opt.selected { border-color: #ef6c00; }
+    .type-message-opt { background: #c8e6c9; }  .type-message-opt.selected { border-color: #2e7d32; }
+    .sheet-actions { display: flex; gap: 10px; padding: 16px 20px 0; }
+    .sheet-btn {
+      flex:1; padding:13px; border-radius:14px; border:none; font-size:15px; font-weight:600; cursor:pointer; transition: all 0.15s;
+    }
+    .sheet-btn:active { transform: scale(0.97); }
+    .sheet-btn.cancel { background: #f0f0f0; color: #666; }
+    .sheet-btn.confirm { background: linear-gradient(135deg, #e74c3c, #c0392b); color: #fff; box-shadow: 0 2px 8px rgba(231,76,60,0.3); }
+
+    /* type chooser */
+    .chooser-grid { display: flex; gap: 12px; padding: 0 20px; }
+    .chooser-card {
+      flex: 1; padding: 20px 8px; border-radius: 16px; border: 2px solid #eee;
+      text-align: center; cursor: pointer; transition: all 0.15s;
+      background: #fafafa;
+    }
+    .chooser-card:active { transform: scale(0.96); border-color: #e74c3c; }
+    .chooser-card .chooser-icon { font-size: 36px; display: block; margin-bottom: 6px; }
+    .chooser-card .chooser-label { font-size: 14px; font-weight: 600; color: #333; }
+    .chooser-card .chooser-sub { font-size: 11px; color: #999; margin-top: 2px; }
+
+    /* join sheet */
+    .join-sheet .sheet-body input {
+      width: 100%; padding: 13px 14px; border: 1.5px solid #e0e0e0;
+      border-radius: 12px; font-size: 15px; outline: none;
+      text-align: center; letter-spacing: 3px; text-transform: uppercase;
+      background: #fafafa; transition: border-color 0.2s;
+    }
+    .join-sheet .sheet-body input:focus { border-color: #e74c3c; background: #fff; }
+    .join-sheet .sheet-body label { display: block; font-size: 12px; color: #999; margin: 10px 0 4px; }
+    .join-sheet .sheet-body .name-input { letter-spacing:0; text-transform:none; text-align:left; }
+    .color-picker { display: flex; gap: 10px; margin-top: 10px; justify-content: center; flex-wrap: wrap; }
+    .color-dot { width: 32px; height: 32px; border-radius: 50%; cursor: pointer; border: 3px solid transparent; transition: all 0.15s; }
+    .color-dot.selected { border-color: #333; transform: scale(1.18); }
+
+    /* member panel */
+    .member-panel {
+      position: fixed; bottom: calc(60px + env(safe-area-inset-bottom)); left: 20px;
+      background: rgba(40,40,55,0.92);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      border-radius: 16px; padding: 14px 16px; min-width: 200px; display: none; z-index: 250;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08);
+    }
+    .member-panel.active { display: block; }
+    .member-panel-title { font-size: 11px; color: rgba(255,255,255,0.4); margin-bottom: 8px; letter-spacing: 2px; text-transform: uppercase; }
+    .member-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
+    .member-color { width: 10px; height: 10px; border-radius: 50%; }
+    .member-name { font-size: 13px; color: rgba(255,255,255,0.8); }
+    .member-me { font-size: 10px; color: rgba(255,255,255,0.3); margin-left: auto; }
+    .invite-row { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; gap: 6px; align-items: center; }
+    .invite-code-display { font-size: 14px; color: #FDCB6E; font-weight: 600; letter-spacing: 2px; cursor: pointer; }
+    .btn-copy { font-size: 11px; padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: transparent; color: rgba(255,255,255,0.5); cursor: pointer; }
+    .btn-copy:active { background: rgba(255,255,255,0.1); }
+    .btn-leave { display: block; margin-top: 10px; width: 100%; padding: 7px; border: 1px solid rgba(231,76,60,0.25); border-radius: 8px; background: transparent; color: rgba(231,76,60,0.5); font-size: 11px; cursor: pointer; }
+    .btn-leave:active { background: rgba(231,76,60,0.1); }
+
+    /* toast */
+    .toast {
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      background: rgba(0,0,0,0.78); color: #fff; padding: 10px 24px; border-radius: 20px; font-size: 14px;
+      z-index: 600; display: none; backdrop-filter: blur(8px);
+    }
+    .toast.active { display: block; animation: toastAnim 2s ease-in-out; }
+    @keyframes toastAnim { 0%,100%{opacity:0} 15%,75%{opacity:1} }
+
+    /* hidden file input */
+    #photoInput { display: none; }
+
+    /* ===== LANDING PAGE ===== */
+    #landingPage {
+      position: fixed; top:0; left:0; width:100%; height:100%;
+      z-index: 1000;
+      background: linear-gradient(170deg,
+        #e8eaed 0%, #dfe1e5 8%, #d5d8dc 20%,
+        #cdcfd3 40%, #c8cbd0 60%, #d0d3d8 80%,
+        #d8dade 92%, #e0e3e7 100%);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    #landingPage::before {
+      content: ''; position: absolute; top:0; left:0; width:100%; height:100%;
+      background:
+        repeating-linear-gradient(90deg, transparent, transparent 59px, rgba(0,0,0,0.018) 59px, rgba(0,0,0,0.018) 60px),
+        repeating-linear-gradient(0deg, transparent, transparent 59px, rgba(0,0,0,0.018) 59px, rgba(0,0,0,0.018) 60px);
+      pointer-events: none;
+    }
+    #landingPage::after {
+      content: ''; position: absolute; top:0; left:0; right:0; bottom:0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0.08) 15%, transparent 40%, transparent 100%);
+      pointer-events: none;
+    }
+    #landingPage.hiding {
+      opacity: 0; transform: scale(0.95); pointer-events: none;
+    }
+    #landingPage.hidden { display: none; }
+
+    /* LCD标题 */
+    .landing-title-box {
+      background: linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%);
+      border-radius: 10px; padding: 10px 32px;
+      border: 1px solid rgba(0,0,0,0.3);
+      box-shadow: inset 0 1px 4px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.15);
+      text-align: center; margin-bottom: 40px; position: relative; z-index: 1;
+    }
+    .landing-title {
+      font-size: 28px; font-weight: 700; letter-spacing: 4px;
+      color: rgba(100,255,150,0.9);
+      font-family: 'Courier New', monospace;
+      text-shadow: 0 0 12px rgba(100,255,150,0.4);
+    }
+
+    /* CSS冰箱插画 */
+    .landing-fridge {
+      position: relative; z-index: 1;
+      width: min(220px, 55vw); aspect-ratio: 5/7;
+      border-radius: 16px;
+      background: linear-gradient(170deg,
+        #e8eaed 0%, #dfe1e5 10%, #d5d8dc 25%,
+        #cdcfd3 45%, #c8cbd0 65%, #d0d3d8 85%,
+        #d8dade 95%, #e0e3e7 100%);
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.2),
+        0 6px 20px rgba(0,0,0,0.2),
+        0 16px 48px rgba(0,0,0,0.15),
+        inset 0 1px 0 rgba(255,255,255,0.4),
+        inset 0 -1px 0 rgba(0,0,0,0.05);
+      margin-bottom: 48px;
+      overflow: hidden;
+    }
+    /* 方格纹理 */
+    .landing-fridge::before {
+      content: ''; position: absolute; top:0; left:0; width:100%; height:100%;
+      background:
+        repeating-linear-gradient(90deg, transparent, transparent 29px, rgba(0,0,0,0.02) 29px, rgba(0,0,0,0.02) 30px),
+        repeating-linear-gradient(0deg, transparent, transparent 29px, rgba(0,0,0,0.02) 29px, rgba(0,0,0,0.02) 30px);
+      pointer-events: none; z-index: 0;
+    }
+    /* 高光 */
+    .landing-fridge::after {
+      content: ''; position: absolute; top:0; left:0; right:0; bottom:0;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.1) 20%, transparent 50%);
+      pointer-events: none; z-index: 3;
+    }
+    /* 分层线 */
+    .landing-fridge-divider {
+      position: absolute; top: 45%; left: 8%; right: 8%; height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(0,0,0,0.08), rgba(0,0,0,0.12), rgba(0,0,0,0.08), transparent);
+      z-index: 1;
+    }
+    /* 把手 */
+    .landing-fridge-handle-top, .landing-fridge-handle-bottom {
+      position: absolute; right: 10%; width: 8px;
+      background: linear-gradient(90deg, #a8acb0, #c8ccd0, #b8bcc0, #d0d4d8, #a8acb0);
+      border-radius: 4px; z-index: 2;
+      box-shadow: 1px 1px 4px rgba(0,0,0,0.15), inset 1px 0 2px rgba(255,255,255,0.4);
+    }
+    .landing-fridge-handle-top { top: 12%; height: 25%; }
+    .landing-fridge-handle-bottom { bottom: 12%; height: 25%; }
+    /* 便签装饰 */
+    .landing-sticky {
+      position: absolute; border-radius: 2px; z-index: 1;
+      box-shadow: 1px 2px 4px rgba(0,0,0,0.12);
+    }
+    .landing-sticky-yellow {
+      width: 38%; height: 22%; top: 15%; left: 15%;
+      background: linear-gradient(175deg, #fffde7, #fff9c4, #fff59d);
+      transform: rotate(-2deg);
+    }
+    .landing-sticky-orange {
+      width: 32%; height: 18%; top: 22%; left: 50%;
+      background: linear-gradient(175deg, #fff3e0, #ffe0b2, #ffcc80);
+      transform: rotate(1.5deg);
+    }
+    .landing-sticky-green {
+      width: 35%; height: 20%; bottom: 18%; left: 20%;
+      background: linear-gradient(175deg, #e8f5e9, #c8e6c9, #a5d6a7);
+      transform: rotate(-1deg);
+    }
+    /* 便签上的线条装饰 */
+    .landing-sticky::after {
+      content: ''; position: absolute; top: 30%; left: 15%; right: 15%;
+      height: 2px; background: rgba(0,0,0,0.06);
+      box-shadow: 0 6px 0 rgba(0,0,0,0.04), 0 12px 0 rgba(0,0,0,0.03);
+    }
+    /* 磁贴emoji */
+    .landing-magnet {
+      position: absolute; font-size: 16px; z-index: 2;
+      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
+    }
+    .landing-magnet-1 { top: 10%; left: 28%; transform: rotate(-8deg); }
+    .landing-magnet-2 { top: 18%; left: 58%; transform: rotate(12deg); }
+    .landing-magnet-3 { bottom: 32%; left: 30%; transform: rotate(-5deg); }
+    .landing-magnet-4 { bottom: 15%; left: 55%; transform: rotate(9deg); }
+    /* 照片冰箱贴装饰 */
+    .landing-photo {
+      position: absolute; width: 28%; aspect-ratio: 1; bottom: 15%; right: 12%;
+      border: 2px solid #fff; border-radius: 2px; z-index: 1;
+      background: linear-gradient(135deg, #fce4ec, #e1bee7, #bbdefb);
+      box-shadow: 2px 3px 6px rgba(0,0,0,0.12);
+      transform: rotate(3deg);
+    }
+    .landing-photo-dot {
+      position: absolute; top: -8px; left: 50%; transform: translateX(-50%) rotate(10deg);
+      font-size: 12px; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.3));
+    }
+
+    /* 按钮 */
+    .landing-btns {
+      display: flex; flex-direction: column; gap: 14px;
+      width: min(300px, 80vw); position: relative; z-index: 1;
+    }
+    .landing-btn {
+      width: 100%; padding: 15px 20px; border-radius: 14px; border: none;
+      font-size: 16px; font-weight: 600; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: all 0.15s;
+    }
+    .landing-btn:active { transform: scale(0.97); }
+    .landing-btn-primary {
+      background: linear-gradient(170deg, #e8eaed, #d5d8dc, #cdcfd3);
+      color: #333;
+      box-shadow:
+        0 1px 0 rgba(255,255,255,0.4),
+        0 2px 4px rgba(0,0,0,0.08),
+        0 4px 12px rgba(0,0,0,0.1),
+        inset 0 1px 0 rgba(255,255,255,0.5);
+    }
+    .landing-btn-secondary {
+      background: linear-gradient(170deg, #f0f1f3, #e4e6e9, #dbdee2);
+      color: #555;
+      box-shadow:
+        0 1px 0 rgba(255,255,255,0.4),
+        0 1px 3px rgba(0,0,0,0.06),
+        0 2px 8px rgba(0,0,0,0.08),
+        inset 0 1px 0 rgba(255,255,255,0.5);
+      font-size: 14px; padding: 12px 20px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Landing Page -->
+<div id="landingPage">
+  <div class="landing-title-box">
+    <div class="landing-title">冰箱便签</div>
+  </div>
+  <div class="landing-fridge">
+    <div class="landing-fridge-divider"></div>
+    <div class="landing-fridge-handle-top"></div>
+    <div class="landing-fridge-handle-bottom"></div>
+    <div class="landing-sticky landing-sticky-yellow"></div>
+    <div class="landing-magnet landing-magnet-1">🧸</div>
+    <div class="landing-sticky landing-sticky-orange"></div>
+    <div class="landing-magnet landing-magnet-2">🍳</div>
+    <div class="landing-sticky landing-sticky-green"></div>
+    <div class="landing-magnet landing-magnet-3">❤️</div>
+    <div class="landing-photo">
+      <div class="landing-photo-dot">🏠</div>
+    </div>
+    <div class="landing-magnet landing-magnet-4">🐱</div>
+  </div>
+  <div class="landing-btns">
+    <button class="landing-btn landing-btn-primary" id="btnCreate">🏠 创建我的冰箱</button>
+    <button class="landing-btn landing-btn-secondary" id="btnJoin">🔗 输入邀请码加入</button>
+  </div>
+</div>
+
+<div id="bgLayer"></div>
+<div id="fridge">
+  <div class="fridge-brand"><div class="fridge-display"><div class="fridge-display-date" id="fridgeDate"></div><div class="fridge-display-time" id="fridgeTime"></div></div></div>
+  <div class="fridge-handle"></div>
+  <div id="notesContainer"></div>
+</div>
+
+<!-- Floating UI -->
+<div class="top-pill">
+  <div class="member-avatar" id="myAvatar" title="成员"></div>
+  <span class="family-badge" id="familyBadge">未加入</span>
+  <div class="sync-dot" id="syncDot"></div>
+  <button class="btn-top-icon" id="btnInvite" title="邀请">🔗</button>
+</div>
+<button class="fab" id="btnAdd">+</button>
+
+<!-- Bottom Sheet: Choose Type -->
+<div class="sheet-overlay" id="chooseOverlay"></div>
+<div class="sheet" id="chooseSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">贴点什么</div>
+  <div class="chooser-grid">
+    <div class="chooser-card" id="chooseNote">
+      <span class="chooser-icon">📝</span>
+      <span class="chooser-label">写便签</span>
+      <span class="chooser-sub">留言 / 提醒 / 清单</span>
+    </div>
+    <div class="chooser-card" id="choosePhoto">
+      <span class="chooser-icon">📸</span>
+      <span class="chooser-label">贴图片</span>
+      <span class="chooser-sub">冰箱贴 / 照片</span>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom Sheet: Add Note -->
+<div class="sheet-overlay" id="addOverlay"></div>
+<div class="sheet" id="addSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">📝 贴一张便签</div>
+  <div class="sheet-body">
+    <textarea id="noteText" placeholder="写点什么..."></textarea>
+    <div class="type-selector">
+      <div class="type-option type-shopping-opt selected" data-type="shopping"><span class="type-emoji">🛒</span><span class="type-label">购物清单</span></div>
+      <div class="type-option type-reminder-opt" data-type="reminder"><span class="type-emoji">📅</span><span class="type-label">提醒事项</span></div>
+      <div class="type-option type-message-opt" data-type="message"><span class="type-emoji">💬</span><span class="type-label">日常留言</span></div>
+    </div>
+  </div>
+  <div class="sheet-actions">
+    <button class="sheet-btn cancel" id="addCancel">取消</button>
+    <button class="sheet-btn confirm" id="addConfirm">贴上去</button>
+  </div>
+</div>
+
+<!-- Bottom Sheet: Join -->
+<div class="sheet-overlay" id="joinOverlay"></div>
+<div class="sheet join-sheet" id="joinSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">🏠 加入冰箱</div>
+  <div class="sheet-body">
+    <label>邀请码（留空自动创建）</label>
+    <input id="joinCode" placeholder="输入邀请码" maxlength="20">
+    <label>你的名字</label>
+    <input id="joinName" class="name-input" placeholder="比如：妈妈" maxlength="8">
+    <label>选个颜色</label>
+    <div class="color-picker" id="colorPicker"></div>
+  </div>
+  <div class="sheet-actions">
+    <button class="sheet-btn cancel" id="joinCancel">取消</button>
+    <button class="sheet-btn confirm" id="joinConfirm">加入</button>
+  </div>
+</div>
+
+<!-- Member Panel -->
+<div class="member-panel" id="memberPanel">
+  <div class="member-panel-title">家庭成员</div>
+  <div id="memberList"></div>
+  <div class="invite-row">
+    <span style="color:rgba(255,255,255,0.4);font-size:11px">邀请码：</span>
+    <span class="invite-code-display" id="inviteCodeDisplay">---</span>
+    <button class="btn-copy" id="btnCopy">复制</button>
+  </div>
+  <button class="btn-leave" id="btnLeave">离开家庭</button>
+</div>
+
+<!-- Fullscreen Photo Viewer -->
+<div id="photoViewer">
+  <div class="viewer-bg" id="viewerBg"></div>
+  <div class="viewer-img-wrap" id="viewerWrap">
+    <img id="viewerImg" src="" alt="">
+  </div>
+  <div class="viewer-hint">向下滑动放回冰箱</div>
+</div>
+
+<div class="toast" id="toast"></div>
+<input type="file" id="photoInput" accept="image/*">
+
+<script>
+(function(){
+  'use strict';
+
+  var MEMBER_COLORS = ['#e74c3c','#3498db','#2ecc71','#f39c12','#9b59b6','#1abc9c','#e67e22','#e91e63'];
+  var MAGNET_STYLES = [
+    { emoji: '🏠', name: '小房子' },
+    { emoji: '❤️', name: '爱心' },
+    { emoji: '🌸', name: '樱花' },
+    { emoji: '⭐', name: '星星' },
+    { emoji: '🍎', name: '苹果' },
+    { emoji: '🐱', name: '猫咪' },
+    { emoji: '☕', name: '咖啡' },
+    { emoji: '🧸', name: '小熊' },
+    { emoji: '🎀', name: '蝴蝶结' },
+    { emoji: '🌻', name: '向日葵' },
+    { emoji: '🍳', name: '煎蛋' },
+    { emoji: '🦋', name: '蝴蝶' }
+  ];
+  var TYPE_INFO = {
+    shopping: { emoji:'\uD83D\uDED2', cls:'type-shopping' },
+    reminder: { emoji:'\uD83D\uDCC5', cls:'type-reminder' },
+    message:  { emoji:'\uD83D\uDCAC', cls:'type-message' }
+  };
+  var API = window.location.origin;
+
+  var familyCode='', myId='', myName='', myColor=MEMBER_COLORS[0];
+  var members={}, notes={};
+  var selectedType='shopping', maxZ=10;
+  var noteElements={};
+  var lastSyncTime=0, syncTimer=null, isOnline=false;
+  var pendingSaves={}; // 正在保存的便签，同步时跳过
+  var localDirty={}; // 本地位置已改变但尚未保存的便签ID
+
+  var LEGACY_REF_W=1400, LEGACY_REF_H=900;
+  function normalizeNotePos(n) {
+    if(n.posUnit==='pct')return;
+    if(n.x!==undefined&&n.y!==undefined){
+      if(n.x>100||n.y>100){ n.x=Math.max(0,Math.min(95,(n.x/LEGACY_REF_W)*100)); n.y=Math.max(0,Math.min(95,(n.y/LEGACY_REF_H)*100)); }
+      else if(n.x<5&&n.y<5){ n.x=(n.x/LEGACY_REF_W)*100; n.y=(n.y/LEGACY_REF_H)*100; }
+    }
+    n.posUnit='pct';
+  }
+
+  function saveLocal(){ localStorage.setItem('fridge_local',JSON.stringify({familyCode:familyCode,myId:myId,myName:myName,myColor:myColor,members:members})); }
+  function loadLocal(){ try{var d=JSON.parse(localStorage.getItem('fridge_local'));if(d){familyCode=d.familyCode||'';myId=d.myId||'';myName=d.myName||'';myColor=d.myColor||MEMBER_COLORS[0];members=d.members||{};}}catch(e){} }
+  function genId(){ return Date.now().toString(36)+Math.random().toString(36).substr(2,5); }
+  function genCode(){ var c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',s='';for(var i=0;i<6;i++)s+=c[Math.floor(Math.random()*c.length)];return s; }
+  function showToast(msg){ var t=document.getElementById('toast');t.textContent=msg;t.classList.add('active');setTimeout(function(){t.classList.remove('active');},2000); }
+  function formatTime(ts){ var d=new Date(ts),mm=d.getMonth()+1,dd=d.getDate(),hh=String(d.getHours()).padStart(2,'0'),mi=String(d.getMinutes()).padStart(2,'0');return mm+'/'+dd+' '+hh+':'+mi; }
+
+  // ===== 时间痕迹：便签随时间褪色，冰箱在"变旧" =====
+  // 指数衰减曲线：4小时完全新鲜 → 1天轻微褪色 → 1周明显旧 → 2周半透明
+  // hover/触摸时恢复完全不透明，像"吹去灰尘"
+  function calcAgeOpacity(updatedAt){
+    var now=Date.now()/1000;
+    var ts=updatedAt; if(!ts)return 1;
+    var hours=(now-ts)/3600;
+    if(hours<4)return 1.0; // 4小时保鲜期
+    var days=hours/24;
+    // 指数衰减 τ=5天：优雅自然的老化曲线
+    var opacity=1.0-0.80*(1-Math.exp(-days/5));
+    return Math.max(0.20,opacity);
+  }
+  function applyAgeOpacity(id){
+    var n=notes[id]; if(!n)return;
+    var el=noteElements[id]; if(!el)return;
+    if(el.classList.contains('sticking')||el.classList.contains('snapping')||el.classList.contains('dragging')||el.classList.contains('peeling'))return;
+    var ts=n.updatedAt||(n.time?n.time/1000:0);
+    el.style.opacity=calcAgeOpacity(ts);
+  }
+  function refreshAllAgeOpacity(){
+    Object.keys(notes).forEach(function(id){applyAgeOpacity(id);});
+  }
+
+  async function apiGet(p){ try{var r=await fetch(API+p,{method:'GET'});return await r.json();}catch(e){return{ok:false};} }
+  async function apiPost(p,b){ try{var r=await fetch(API+p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});return await r.json();}catch(e){return{ok:false};} }
+  async function apiDelete(p){ try{var r=await fetch(API+p,{method:'DELETE'});return await r.json();}catch(e){return{ok:false};} }
+
+  async function syncFromServer(){
+    if(!familyCode)return;
+    var result=await apiGet('/api/sync?code='+familyCode+'&since='+lastSyncTime);
+    var dot=document.getElementById('syncDot');
+    if(result.ok){ isOnline=true;dot.classList.remove('offline');
+      if(result.family){
+        if(result.family.members)Object.keys(result.family.members).forEach(function(mid){members[mid]=result.family.members[mid];});
+        if(result.family.notes)Object.keys(result.family.notes).forEach(function(nid){
+          if(nid in pendingSaves||nid in localDirty)return; // 跳过正在本地保存或位置脏的便签
+          var n=result.family.notes[nid];
+          if(n._deleted){delete notes[nid];removeNoteEl(nid);}
+          else{
+            normalizeNotePos(n);
+            // 只更新数据，不重绘已有元素的位置
+            var existed=!!notes[nid];
+            notes[nid]=n;
+            if(existed){
+              // 已有元素：只更新内容，不动位置
+              updateNoteContent(nid);
+            }else{
+              renderNote(nid);
+            }
+          }
+        });
+        lastSyncTime=result.serverTime||0;saveLocal();updateUI();
+      }
+    }else{isOnline=false;dot.classList.add('offline');}
+  }
+  function startSync(){if(syncTimer)clearInterval(syncTimer);syncFromServer();syncTimer=setInterval(syncFromServer,1500);}
+  // 时间痕迹：每60秒刷新一次所有便签的不透明度（冰箱慢慢变老）
+  var ageTimer=null;
+  function startAgeTick(){if(ageTimer)clearInterval(ageTimer);refreshAllAgeOpacity();ageTimer=setInterval(refreshAllAgeOpacity,60000);}
+
+  // ===== 渲染 =====
+  var container=document.getElementById('notesContainer');
+  var fridge=document.getElementById('fridge');
+
+  function renderAllNotes(){ Object.keys(notes).forEach(function(id){normalizeNotePos(notes[id]);renderNote(id);}); updateUI(); }
+  function removeNoteEl(id){ if(noteElements[id]){var el=noteElements[id];if(el.parentNode)el.parentNode.removeChild(el);delete noteElements[id];} }
+
+  // 只更新便签内容（文字、作者等），不动位置和transform
+  function updateNoteContent(id){
+    var n=notes[id]; if(!n)return;
+    var el=noteElements[id]; if(!el)return;
+    if(n.itemType==='photo'){
+      el.querySelector('.photo-inner img').src=n.imageData||'';
+      el.querySelector('.photo-author').textContent=n.authorName||'';
+      el.querySelector('.photo-author').style.color=n.authorColor||'#666';
+      el.style.opacity=calcAgeOpacity(n.updatedAt||(n.time?n.time/1000:0));
+      return;
+    }
+    var ti=TYPE_INFO[n.type]||TYPE_INFO.message;
+    el.className='note pinned '+ti.cls;
+    el.querySelector('.note-magnet').textContent=MAGNET_STYLES[n.magnetStyle!==undefined?n.magnetStyle:0].emoji;
+    el.querySelector('.note-type-badge').textContent=ti.emoji;
+    el.querySelector('.note-content').textContent=n.text||'';
+    el.querySelector('.note-author').textContent=n.authorName||'';
+    el.querySelector('.note-author').style.color=n.authorColor||'#666';
+    el.querySelector('.note-time').textContent=formatTime(n.time||Date.now());
+    // 时间痕迹：更新不透明度
+    el.style.opacity=calcAgeOpacity(n.updatedAt||(n.time?n.time/1000:0));
+  }
+
+  function renderNote(id){
+    var n=notes[id]; if(!n)return; normalizeNotePos(n);
+    var el=noteElements[id];
+
+    // 如果元素正在动画中，跳过重绘位置和transform
+    if(el&&(el.classList.contains('sticking')||el.classList.contains('snapping')||el.classList.contains('dragging')))return;
+
+    // 图片冰箱贴
+    if(n.itemType==='photo'){
+      if(!el){
+        el=document.createElement('div');
+        el.className='photo-magnet'; el.dataset.noteId=id;
+        el.innerHTML='<div class="photo-magnet-dot"></div><div class="photo-inner"><img src="" alt="photo"></div><button class="photo-del">&times;</button><span class="photo-author"></span>';
+        container.appendChild(el); noteElements[id]=el;
+        bindDrag(el,id);
+        el.querySelector('.photo-del').addEventListener('click',function(e){e.stopPropagation();deleteNote(id);});
+        el.querySelector('.photo-del').addEventListener('touchend',function(e){e.preventDefault();e.stopPropagation();deleteNote(id);});
+        el.querySelector('.photo-inner').addEventListener('click',function(e){e.stopPropagation();openPhotoViewer(id);});
+        el.querySelector('.photo-inner').addEventListener('touchend',function(e){e.preventDefault();e.stopPropagation();openPhotoViewer(id);});
+      }
+      el.style.left=n.x+'%'; el.style.top=n.y+'%';
+      el.style.zIndex=n.z||10;
+      el.style.setProperty('--note-rotate',(n.rotate||0)+'deg');
+      el.style.transform='rotate('+(n.rotate||0)+'deg)';
+      var ms=n.magnetStyle!==undefined?n.magnetStyle:Math.floor(Math.random()*MAGNET_STYLES.length);
+      el.style.setProperty('--magnet-rotate',(n.magnetRotate||0)+'deg');
+      el.querySelector('.photo-magnet-dot').textContent=MAGNET_STYLES[ms].emoji;
+      el.querySelector('.photo-inner img').src=n.imageData||'';
+      el.querySelector('.photo-author').textContent=n.authorName||'';
+      el.querySelector('.photo-author').style.color=n.authorColor||'#666';
+      // 时间痕迹：褪色
+      el.style.opacity=calcAgeOpacity(n.updatedAt||(n.time?n.time/1000:0));
+      return;
+    }
+
+    // 文字便签
+    if(!el){
+      el=document.createElement('div');
+      el.className='note pinned'; el.dataset.noteId=id;
+      el.innerHTML='<div class="note-magnet"></div><div class="note-type-badge"></div><button class="note-delete">&times;</button><div class="note-content"></div><div class="note-meta"><span class="note-author"></span><span class="note-time"></span></div>';
+      container.appendChild(el); noteElements[id]=el;
+      bindDrag(el,id);
+      el.querySelector('.note-delete').addEventListener('click',function(e){e.stopPropagation();deleteNote(id);});
+      el.querySelector('.note-delete').addEventListener('touchend',function(e){e.preventDefault();e.stopPropagation();deleteNote(id);});
+    }
+    var ti=TYPE_INFO[n.type]||TYPE_INFO.message;
+    el.className='note pinned '+ti.cls;
+    el.style.left=n.x+'%'; el.style.top=n.y+'%';
+    el.style.zIndex=n.z||10;
+    el.style.setProperty('--note-rotate',(n.rotate||0)+'deg');
+    el.style.transform='rotate('+(n.rotate||0)+'deg)';
+    el.style.setProperty('--author-color',n.authorColor||'#666');
+    var ms2=n.magnetStyle!==undefined?n.magnetStyle:Math.floor(Math.random()*MAGNET_STYLES.length);
+    el.style.setProperty('--magnet-rotate',(n.magnetRotate||0)+'deg');
+    el.querySelector('.note-magnet').textContent=MAGNET_STYLES[ms2].emoji;
+    el.querySelector('.note-type-badge').textContent=ti.emoji;
+    el.querySelector('.note-content').textContent=n.text||'';
+    el.querySelector('.note-author').textContent=n.authorName||'';
+    el.querySelector('.note-author').style.color=n.authorColor||'#666';
+    el.querySelector('.note-time').textContent=formatTime(n.time||Date.now());
+    // 时间痕迹：褪色
+    el.style.opacity=calcAgeOpacity(n.updatedAt||(n.time?n.time/1000:0));
+  }
+
+  async function deleteNote(id){
+    delete notes[id]; var el=noteElements[id];
+    if(el){
+      var ghost=document.createElement('div'); ghost.className='note-ghost';
+      ghost.style.left=el.style.left; ghost.style.top=el.style.top;
+      ghost.style.width=el.offsetWidth+'px'; ghost.style.height=el.offsetHeight+'px';
+      ghost.style.transform=el.style.transform;
+      container.appendChild(ghost);
+      setTimeout(function(){if(ghost.parentNode)ghost.parentNode.removeChild(ghost);},400);
+      el.classList.add('peeling');
+      setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},380);
+      delete noteElements[id];
+    }
+    updateUI();
+    if(familyCode) await apiDelete('/api/note?code='+familyCode+'&id='+id);
+  }
+  async function saveNoteToServer(id,n){ if(!familyCode)return; await apiPost('/api/note',{code:familyCode,id:id,note:n}); }
+
+  // ===== 图片吸附便签逻辑 =====
+  // 拖动图片冰箱贴结束时，检测是否靠近某张便签边缘，吸附上去
+  function snapPhotoToNote(photoId) {
+    var pn = notes[photoId];
+    if (!pn || pn.itemType !== 'photo') return;
+
+    var fridgeEl = document.getElementById('fridge');
+    var fw = fridgeEl.clientWidth, fh = fridgeEl.clientHeight;
+    var photoEl = noteElements[photoId];
+    if (!photoEl) return;
+
+    // 图片中心位置（百分比 → 像素）
+    var pcx = (pn.x / 100) * fw + 38; // 76/2=38
+    var pcy = (pn.y / 100) * fh + 38;
+
+    var bestDist = Infinity, bestSnap = null;
+
+    Object.keys(notes).forEach(function(nid) {
+      var n = notes[nid];
+      if (nid === photoId || n.itemType === 'photo') return; // 只吸附便签
+
+      var nel = noteElements[nid];
+      if (!nel) return;
+
+      // 便签中心
+      var ncx = (n.x / 100) * fw + nel.offsetWidth / 2;
+      var ncy = (n.y / 100) * fh + nel.offsetHeight / 2;
+      var nw = nel.offsetWidth, nh = nel.offsetHeight;
+
+      // 检测4条边，找最近的吸附点
+      var snaps = [
+        { edge: 'right',  px: (n.x / 100) * fw + nw + 4,   py: (n.y / 100) * fh + nh / 2 - 38 },
+        { edge: 'left',   px: (n.x / 100) * fw - 80,       py: (n.y / 100) * fh + nh / 2 - 38 },
+        { edge: 'bottom', px: (n.x / 100) * fw + nw / 2 - 38, py: (n.y / 100) * fh + nh + 4 },
+        { edge: 'top',    px: (n.x / 100) * fw + nw / 2 - 38, py: (n.y / 100) * fh - 80 }
+      ];
+
+      snaps.forEach(function(s) {
+        var dx = pcx - s.px - 38; // photo center vs snap point center
+        var dy = pcy - s.py - 38;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        // 吸附阈值 50px
+        if (dist < 50 && dist < bestDist) {
+          bestDist = dist;
+          bestSnap = { xPct: (s.px / fw) * 100, yPct: (s.py / fh) * 100, noteId: nid };
+        }
+      });
+    });
+
+    if (bestSnap) {
+      // 吸附
+      pn.x = bestSnap.xPct;
+      pn.y = bestSnap.yPct;
+      pn.snappedTo = bestSnap.noteId;
+      photoEl.style.left = pn.x + '%';
+      photoEl.style.top = pn.y + '%';
+    } else {
+      pn.snappedTo = null;
+    }
+  }
+
+  // ===== 通用拖动 =====
+  function bindDrag(el,id){
+    var startX,startY,startLeftPct,startTopPct,moved;
+    function onStart(cx,cy){ var n=notes[id];if(!n)return;normalizeNotePos(n);n.z=++maxZ;el.style.zIndex=n.z;startX=cx;startY=cy;startLeftPct=n.x;startTopPct=n.y;moved=false;el.classList.add('dragging');el.style.opacity=1; }
+    function onMove(cx,cy){ var dx=cx-startX,dy=cy-startY;if(Math.abs(dx)>3||Math.abs(dy)>3)moved=true;if(!moved)return;var fw=fridge.clientWidth,fh=fridge.clientHeight;var nxPct=startLeftPct+(dx/fw*100),nyPct=startTopPct+(dy/fh*100);nxPct=Math.max(-10,Math.min(88,nxPct));nyPct=Math.max(-5,Math.min(88,nyPct));notes[id].x=nxPct;notes[id].y=nyPct;localDirty[id]=true;el.style.left=nxPct+'%';el.style.top=nyPct+'%'; }
+    function onEnd(){
+      el.classList.remove('dragging');
+      if(moved){
+        var n=notes[id];if(!n)return;n.pinned=true;
+        // 图片冰箱贴吸附便签
+        if(n.itemType==='photo'){ snapPhotoToNote(id); }
+        n.updatedAt=Date.now()/1000;
+        pendingSaves[id]=true;localDirty[id]=true;
+        saveNoteToServer(id,n).then(function(){delete pendingSaves[id];delete localDirty[id];});
+        // 只播放贴上bounce动效，不同时放两个动画
+        el.classList.remove('sticking');void el.offsetWidth;el.classList.add('sticking');setTimeout(function(){el.classList.remove('sticking');},450);
+      }
+    }
+    el.addEventListener('touchstart',function(e){e.stopPropagation();onStart(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
+    el.addEventListener('mousedown',function(e){e.preventDefault();e.stopPropagation();onStart(e.clientX,e.clientY);});
+    var moveH=function(e){if(!el.classList.contains('dragging'))return;var cx,cy;if(e.touches){cx=e.touches[0].clientX;cy=e.touches[0].clientY;}else{cx=e.clientX;cy=e.clientY;}onMove(cx,cy);if(moved)e.preventDefault();};
+    var endH=function(){if(el.classList.contains('dragging'))onEnd();};
+    document.addEventListener('touchmove',moveH,{passive:false});
+    document.addEventListener('mousemove',moveH);
+    document.addEventListener('touchend',endH);
+    document.addEventListener('mouseup',endH);
+  }
+
+  // ===== 全屏图片查看器 =====
+  var viewer=document.getElementById('photoViewer');
+  var viewerBg=document.getElementById('viewerBg');
+  var viewerWrap=document.getElementById('viewerWrap');
+  var viewerImg=document.getElementById('viewerImg');
+  var viewerDragStartY=0, viewerDragging=false;
+
+  function openPhotoViewer(id){
+    var n=notes[id]; if(!n||!n.imageData)return;
+    viewerImg.src=n.imageData;
+    viewer.classList.add('active');
+    viewer._noteId=id;
+  }
+  function closePhotoViewer(){
+    viewer.classList.remove('active');
+    viewer._noteId=null;
+  }
+  viewerBg.addEventListener('click',closePhotoViewer);
+  // 向下拖关闭
+  viewerWrap.addEventListener('touchstart',function(e){viewerDragStartY=e.touches[0].clientY;viewerDragging=true;e.stopPropagation();},{passive:true});
+  viewerWrap.addEventListener('mousedown',function(e){viewerDragStartY=e.clientY;viewerDragging=true;e.preventDefault();e.stopPropagation();});
+  var viewerMoveH=function(e){
+    if(!viewerDragging)return;
+    var cy=e.touches?e.touches[0].clientY:e.clientY;
+    var dy=cy-viewerDragStartY;
+    if(dy>0){
+      viewerWrap.style.transform='translateY('+dy+'px) scale('+(1-dy/800)+')';
+      viewerWrap.style.opacity=Math.max(0,1-dy/300);
+      if(e.cancelable)e.preventDefault();
+    }
+  };
+  var viewerEndH=function(){
+    if(!viewerDragging)return;viewerDragging=false;
+    var currentTranslate=parseInt(viewerWrap.style.transform.replace(/.*translateY\((\d+)px\).*/,'$1'))||0;
+    if(currentTranslate>80){closePhotoViewer();}
+    viewerWrap.style.transform='';viewerWrap.style.opacity='';
+  };
+  document.addEventListener('touchmove',viewerMoveH,{passive:false});
+  document.addEventListener('mousemove',viewerMoveH);
+  document.addEventListener('touchend',viewerEndH);
+  document.addEventListener('mouseup',viewerEndH);
+
+  // ===== UI =====
+  function updateUI(){
+    var avatar=document.getElementById('myAvatar'),badge=document.getElementById('familyBadge');
+    if(myName){avatar.textContent=myName.charAt(0);avatar.style.background=myColor;avatar.title=myName;}
+    badge.textContent=familyCode?'\uD83C\uDFE0 '+familyCode:'未加入';
+    var ml=document.getElementById('memberList');ml.innerHTML='';
+    Object.keys(members).forEach(function(mid){var m=members[mid];var row=document.createElement('div');row.className='member-row';row.innerHTML='<div class="member-color" style="background:'+m.color+'"></div><span class="member-name">'+(m.name||'匿名')+'</span>'+(mid===myId?'<span class="member-me">我</span>':'');ml.appendChild(row);});
+    document.getElementById('inviteCodeDisplay').textContent=familyCode||'---';
+  }
+
+  // ===== Sheet 控制 =====
+  function openSheet(s,o){document.getElementById(o).classList.add('active');document.getElementById(s).classList.add('active');}
+  function closeSheet(s,o){document.getElementById(s).classList.remove('active');document.getElementById(o).classList.remove('active');}
+
+  // ===== FAB → 选择类型 =====
+  document.getElementById('btnAdd').addEventListener('click',function(){
+    if(!familyCode){openSheet('joinSheet','joinOverlay');return;}
+    openSheet('chooseSheet','chooseOverlay');
+  });
+  document.getElementById('btnAdd').addEventListener('touchend',function(e){
+    e.preventDefault();if(!familyCode){openSheet('joinSheet','joinOverlay');return;}
+    openSheet('chooseSheet','chooseOverlay');
+  });
+  document.getElementById('chooseOverlay').addEventListener('click',function(){closeSheet('chooseSheet','chooseOverlay');});
+
+  // 选择：写便签
+  document.getElementById('chooseNote').addEventListener('click',function(){
+    closeSheet('chooseSheet','chooseOverlay');
+    document.getElementById('noteText').value='';
+    openSheet('addSheet','addOverlay');
+    setTimeout(function(){document.getElementById('noteText').focus();},400);
+  });
+  document.getElementById('chooseNote').addEventListener('touchend',function(e){
+    e.preventDefault();closeSheet('chooseSheet','chooseOverlay');
+    document.getElementById('noteText').value='';
+    openSheet('addSheet','addOverlay');
+    setTimeout(function(){document.getElementById('noteText').focus();},400);
+  });
+
+  // 选择：贴图片
+  document.getElementById('choosePhoto').addEventListener('click',function(){
+    closeSheet('chooseSheet','chooseOverlay');
+    document.getElementById('photoInput').click();
+  });
+  document.getElementById('choosePhoto').addEventListener('touchend',function(e){
+    e.preventDefault();closeSheet('chooseSheet','chooseOverlay');
+    document.getElementById('photoInput').click();
+  });
+
+  // ===== 图片上传处理 =====
+  document.getElementById('photoInput').addEventListener('change',function(e){
+    var file=e.target.files&&e.target.files[0];
+    if(!file)return;
+    var reader=new FileReader();
+    reader.onload=function(ev){
+      var img=new Image();
+      img.onload=function(){
+        // 缩放到合理尺寸（长边 max 800）
+        var maxLen=800;var w=img.width,h=img.height;
+        if(w>maxLen||h>maxLen){if(w>h){h=Math.round(h*maxLen/w);w=maxLen;}else{w=Math.round(w*maxLen/h);h=maxLen;}}
+        var canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+        var ctx=canvas.getContext('2d');ctx.drawImage(img,0,0,w,h);
+        var dataUrl=canvas.toDataURL('image/jpeg',0.8);
+        addPhotoMagnet(dataUrl);
+      };
+      img.src=ev.target.result;
+    };
+    reader.readAsDataURL(file);
+    e.target.value=''; // reset
+  });
+
+  async function addPhotoMagnet(imageData){
+    var id=genId();
+    var n={
+      itemType:'photo', imageData:imageData,
+      authorId:myId, authorName:myName, authorColor:myColor,
+      time:Date.now(), updatedAt:Date.now()/1000,
+      x: 3+Math.random()*70, y: 2+Math.random()*75,
+      z:++maxZ, rotate:(Math.random()-0.5)*10,
+      pinned:true, posUnit:'pct',
+      magnetStyle:Math.floor(Math.random()*MAGNET_STYLES.length),
+      magnetRotate:(Math.random()-0.5)*20
+    };
+    notes[id]=n; renderNote(id);
+    // bounce 动效
+    var el=noteElements[id];
+    if(el){el.classList.add('sticking');setTimeout(function(){el.classList.remove('sticking');},450);}
+    updateUI(); pendingSaves[id]=true; await saveNoteToServer(id,n); delete pendingSaves[id];
+  }
+
+  // ===== 新建文字便签 =====
+  var noteText=document.getElementById('noteText');
+  document.getElementById('addOverlay').addEventListener('click',function(){closeSheet('addSheet','addOverlay');});
+  document.getElementById('addCancel').addEventListener('click',function(){closeSheet('addSheet','addOverlay');});
+  document.getElementById('addCancel').addEventListener('touchend',function(e){e.preventDefault();closeSheet('addSheet','addOverlay');});
+  document.getElementById('addConfirm').addEventListener('click',addNewNote);
+  document.getElementById('addConfirm').addEventListener('touchend',function(e){e.preventDefault();addNewNote();});
+
+  async function addNewNote(){
+    var text=noteText.value.trim();if(!text){showToast('写点什么吧');return;}
+    var id=genId();
+    var n={
+      text:text, type:selectedType, itemType:'text',
+      authorId:myId, authorName:myName, authorColor:myColor,
+      time:Date.now(), updatedAt:Date.now()/1000,
+      x: 3+Math.random()*70, y: 2+Math.random()*75,
+      z:++maxZ, rotate:(Math.random()-0.5)*8,
+      tapeRotate:(Math.random()-0.5)*10, pinned:true, posUnit:'pct',
+      magnetStyle:Math.floor(Math.random()*MAGNET_STYLES.length),
+      magnetRotate:(Math.random()-0.5)*20
+    };
+    notes[id]=n; renderNote(id);
+    closeSheet('addSheet','addOverlay');
+    var el=noteElements[id];if(el){el.classList.add('sticking');setTimeout(function(){el.classList.remove('sticking');},450);}
+    updateUI(); pendingSaves[id]=true; await saveNoteToServer(id,n); delete pendingSaves[id];
+  }
+
+  // 类型选择
+  document.querySelectorAll('.type-option').forEach(function(opt){
+    opt.addEventListener('click',function(){document.querySelectorAll('.type-option').forEach(function(o){o.classList.remove('selected');});opt.classList.add('selected');selectedType=opt.dataset.type;});
+    opt.addEventListener('touchend',function(e){e.preventDefault();document.querySelectorAll('.type-option').forEach(function(o){o.classList.remove('selected');});opt.classList.add('selected');selectedType=opt.dataset.type;});
+  });
+
+  // ===== 加入家庭 =====
+  var joinCode=document.getElementById('joinCode'),joinName=document.getElementById('joinName'),colorPicker=document.getElementById('colorPicker');
+  MEMBER_COLORS.forEach(function(c,i){var dot=document.createElement('div');dot.className='color-dot'+(i===0?' selected':'');dot.style.background=c;dot.dataset.color=c;dot.addEventListener('click',function(){document.querySelectorAll('.color-dot').forEach(function(d){d.classList.remove('selected');});dot.classList.add('selected');myColor=c;});dot.addEventListener('touchend',function(e){e.preventDefault();document.querySelectorAll('.color-dot').forEach(function(d){d.classList.remove('selected');});dot.classList.add('selected');myColor=c;});colorPicker.appendChild(dot);});
+
+  document.getElementById('myAvatar').addEventListener('click',function(){if(familyCode)document.getElementById('memberPanel').classList.toggle('active');else openSheet('joinSheet','joinOverlay');});
+  document.getElementById('myAvatar').addEventListener('touchend',function(e){e.preventDefault();if(familyCode)document.getElementById('memberPanel').classList.toggle('active');else openSheet('joinSheet','joinOverlay');});
+  document.getElementById('btnInvite').addEventListener('click',function(){if(!familyCode){openSheet('joinSheet','joinOverlay');return;}document.getElementById('memberPanel').classList.toggle('active');});
+  document.getElementById('joinOverlay').addEventListener('click',function(){closeSheet('joinSheet','joinOverlay');});
+  document.getElementById('joinCancel').addEventListener('click',function(){closeSheet('joinSheet','joinOverlay');});
+  document.getElementById('joinConfirm').addEventListener('click',joinFamily);
+  document.getElementById('joinConfirm').addEventListener('touchend',function(e){e.preventDefault();joinFamily();});
+
+  async function joinFamily(){
+    var code=joinCode.value.trim().toUpperCase(),name=joinName.value.trim();
+    if(!name){showToast('请输入名字');return;}
+    if(!code)code=genCode();if(!myId)myId=genId();
+    familyCode=code;myName=name;members[myId]={name:myName,color:myColor};
+    closeSheet('joinSheet','joinOverlay');
+    document.getElementById('memberPanel').classList.remove('active');
+    saveLocal();updateUI();
+    await apiPost('/api/member',{code:familyCode,id:myId,member:{name:myName,color:myColor}});
+    startSync();startAgeTick();showToast('欢迎回家，'+myName+'！');
+  }
+
+  document.getElementById('btnLeave').addEventListener('click',async function(){
+    if(!confirm('确定离开这个冰箱吗？'))return;
+    if(familyCode&&myId)await apiDelete('/api/member?code='+familyCode+'&id='+myId);
+    delete members[myId];familyCode='';myId='';myName='';notes={};
+    Object.keys(noteElements).forEach(function(id){var el=noteElements[id];if(el.parentNode)el.parentNode.removeChild(el);});
+    noteElements={};document.getElementById('memberPanel').classList.remove('active');
+    if(syncTimer)clearInterval(syncTimer);saveLocal();updateUI();showToast('已离开');
+  });
+  document.getElementById('btnCopy').addEventListener('click',function(){if(!familyCode)return;if(navigator.clipboard){navigator.clipboard.writeText(familyCode).then(function(){showToast('已复制：'+familyCode);});}else showToast(familyCode);});
+  fridge.addEventListener('click',function(e){if(e.target===fridge)document.getElementById('memberPanel').classList.remove('active');});
+  document.getElementById('bgLayer').addEventListener('click',function(){document.getElementById('memberPanel').classList.remove('active');});
+
+  // ===== 冰箱电子屏时钟 =====
+  var fridgeDateEl=document.getElementById('fridgeDate');
+  var fridgeTimeEl=document.getElementById('fridgeTime');
+  function updateFridgeClock(){
+    var now=new Date();
+    var weekDays=['日','一','二','三','四','五','六'];
+    fridgeDateEl.textContent=now.getFullYear()+'/'+(now.getMonth()+1)+'/'+now.getDate()+' 周'+weekDays[now.getDay()];
+    fridgeTimeEl.textContent=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0')+':'+String(now.getSeconds()).padStart(2,'0');
+  }
+  updateFridgeClock();
+  setInterval(updateFridgeClock,1000);
+
+  // ===== Landing Page =====
+  var landingEl = document.getElementById('landingPage');
+  function hideLanding(){
+    landingEl.classList.add('hiding');
+    setTimeout(function(){landingEl.classList.add('hidden');},300);
+  }
+  function showLanding(){
+    landingEl.classList.remove('hidden');
+    setTimeout(function(){landingEl.classList.remove('hiding');},20);
+  }
+  document.getElementById('btnCreate').addEventListener('click',function(){
+    // 创建新冰箱：清空邀请码，打开加入面板
+    document.getElementById('joinCode').value='';
+    openSheet('joinSheet','joinOverlay');
+    setTimeout(function(){document.getElementById('joinName').focus();},400);
+  });
+  document.getElementById('btnCreate').addEventListener('touchend',function(e){
+    e.preventDefault();
+    document.getElementById('joinCode').value='';
+    openSheet('joinSheet','joinOverlay');
+    setTimeout(function(){document.getElementById('joinName').focus();},400);
+  });
+  document.getElementById('btnJoin').addEventListener('click',function(){
+    // 加入已有冰箱：焦点放邀请码
+    document.getElementById('joinCode').value='';
+    openSheet('joinSheet','joinOverlay');
+    setTimeout(function(){document.getElementById('joinCode').focus();},400);
+  });
+  document.getElementById('btnJoin').addEventListener('touchend',function(e){
+    e.preventDefault();
+    document.getElementById('joinCode').value='';
+    openSheet('joinSheet','joinOverlay');
+    setTimeout(function(){document.getElementById('joinCode').focus();},400);
+  });
+
+  // 重写joinFamily：加入成功后隐藏landing
+  var _origJoin = joinFamily;
+  joinFamily = async function(){
+    var code=document.getElementById('joinCode').value.trim().toUpperCase(),
+        name=document.getElementById('joinName').value.trim();
+    if(!name){showToast('请输入名字');return;}
+    if(!code)code=genCode();
+
+    // 清空旧数据，防止残留
+    if(familyCode&&familyCode!==code){
+      if(syncTimer)clearInterval(syncTimer);
+      notes={};members={};
+      Object.keys(noteElements).forEach(function(id){var el=noteElements[id];if(el.parentNode)el.parentNode.removeChild(el);});
+      noteElements={};
+    }
+
+    // 先从服务端拉取该家庭已有成员，避免重复
+    var existingData=await apiGet('/api/sync?code='+code+'&since=0');
+    var existingMembers={};
+    if(existingData.ok&&existingData.family&&existingData.family.members){
+      existingMembers=existingData.family.members;
+      // 如果已有同名成员，复用其ID
+      Object.keys(existingMembers).forEach(function(mid){
+        if(existingMembers[mid].name===name){myId=mid;myColor=existingMembers[mid].color||myColor;}
+      });
+    }
+
+    if(!myId)myId=genId();
+    familyCode=code;myName=name;members[myId]={name:myName,color:myColor};
+    // 合并已有成员
+    Object.keys(existingMembers).forEach(function(mid){if(!(mid in members))members[mid]=existingMembers[mid];});
+
+    closeSheet('joinSheet','joinOverlay');
+    document.getElementById('memberPanel').classList.remove('active');
+    saveLocal();updateUI();hideLanding();
+    await apiPost('/api/member',{code:familyCode,id:myId,member:{name:myName,color:myColor}});
+    startSync();startAgeTick();showToast('欢迎回家，'+myName+'！');
+  };
+  // 解绑旧事件，绑定新事件
+  var confirmBtns = document.querySelectorAll('#joinConfirm');
+  confirmBtns.forEach(function(btn){
+    // clone替换去掉旧listener
+    var newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+    newBtn.addEventListener('click',joinFamily);
+    newBtn.addEventListener('touchend',function(e){e.preventDefault();joinFamily();});
+  });
+
+  // 离开家庭时回到landing
+  var _origLeave = document.getElementById('btnLeave').onclick;
+  var leaveBtn = document.getElementById('btnLeave');
+  var newLeaveBtn = leaveBtn.cloneNode(true);
+  leaveBtn.parentNode.replaceChild(newLeaveBtn, leaveBtn);
+  newLeaveBtn.addEventListener('click',async function(){
+    if(!confirm('确定离开这个冰箱吗？'))return;
+    if(familyCode&&myId)await apiDelete('/api/member?code='+familyCode+'&id='+myId);
+    familyCode='';myId='';myName='';members={};notes={};
+    Object.keys(noteElements).forEach(function(id){var el=noteElements[id];if(el.parentNode)el.parentNode.removeChild(el);});
+    noteElements={};document.getElementById('memberPanel').classList.remove('active');
+    if(syncTimer)clearInterval(syncTimer);saveLocal();updateUI();showToast('已离开');showLanding();
+  });
+
+  // ===== 初始化 =====
+  loadLocal();updateUI();
+  if(familyCode){
+    hideLanding();
+    apiPost('/api/member',{code:familyCode,id:myId,member:{name:myName,color:myColor}});
+    startSync();startAgeTick();
+    (async function(){
+      var result=await apiGet('/api/sync?code='+familyCode+'&since=0');
+      if(result.ok&&result.family){
+        if(result.family.members)Object.keys(result.family.members).forEach(function(mid){members[mid]=result.family.members[mid];});
+        if(result.family.notes)Object.keys(result.family.notes).forEach(function(nid){var n=result.family.notes[nid];if(!n._deleted){normalizeNotePos(n);notes[nid]=n;}});
+        lastSyncTime=result.serverTime||0;renderAllNotes();saveLocal();
+      }
+    })();
+  }
+  // 没有familyCode时保持landing显示，不再自动弹joinSheet
+
+})();
+</script>
+</body>
+</html>

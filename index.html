@@ -317,6 +317,14 @@
     .family-badge { font-size: 12px; color: rgba(255,255,255,0.6); letter-spacing: 1px; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #2ecc71; animation: pulse 2s ease-in-out infinite; }
     .sync-dot.offline { background: #e74c3c; animation: none; }
+    .offline-banner {
+      position: fixed; top: 0; left: 0; width: 100%;
+      background: linear-gradient(90deg, #e74c3c, #c0392b);
+      color: #fff; font-size: 12px; text-align: center;
+      padding: 6px 0; z-index: 9999;
+      transform: translateY(-100%); transition: transform 0.3s ease;
+    }
+    .offline-banner.visible { transform: translateY(0); }
     @keyframes pulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
     .btn-top-icon {
       width: 28px; height: 28px; border-radius: 50%; border: none;
@@ -633,6 +641,7 @@
 </div>
 
 <div id="bgLayer"></div>
+<div class="offline-banner" id="offlineBanner">📡 网络已断开 · 便签已自动保存到本地</div>
 <div id="fridge">
   <div class="fridge-brand"><div class="fridge-display"><div class="fridge-display-date" id="fridgeDate"></div><div class="fridge-display-time" id="fridgeTime"></div></div></div>
   <div class="fridge-handle"></div>
@@ -773,8 +782,27 @@
     n.posUnit='pct';
   }
 
-  function saveLocal(){ localStorage.setItem('fridge_local',JSON.stringify({familyCode:familyCode,myId:myId,myName:myName,myColor:myColor,members:members})); }
-  function loadLocal(){ try{var d=JSON.parse(localStorage.getItem('fridge_local'));if(d){familyCode=d.familyCode||'';myId=d.myId||'';myName=d.myName||'';myColor=d.myColor||MEMBER_COLORS[0];members=d.members||{};}}catch(e){} }
+  function saveLocal(){
+    try{
+      localStorage.setItem('fridge_local',JSON.stringify({familyCode:familyCode,myId:myId,myName:myName,myColor:myColor,members:members}));
+      // 便签数据单独存储，避免超限
+      var notesData={};
+      Object.keys(notes).forEach(function(id){var n=notes[id];if(!n._deleted)notesData[id]=n;});
+      localStorage.setItem('fridge_notes',JSON.stringify(notesData));
+      localStorage.setItem('fridge_sync_time',String(lastSyncTime));
+    }catch(e){}
+  }
+  function loadLocal(){
+    try{
+      var d=JSON.parse(localStorage.getItem('fridge_local'));
+      if(d){familyCode=d.familyCode||'';myId=d.myId||'';myName=d.myName||'';myColor=d.myColor||MEMBER_COLORS[0];members=d.members||{};}
+      // 恢复便签数据
+      var nd=JSON.parse(localStorage.getItem('fridge_notes'));
+      if(nd){Object.keys(nd).forEach(function(nid){normalizeNotePos(nd[nid]);notes[nid]=nd[nid];});}
+      var st=localStorage.getItem('fridge_sync_time');
+      if(st)lastSyncTime=parseFloat(st)||0;
+    }catch(e){}
+  }
   function genId(){ return Date.now().toString(36)+Math.random().toString(36).substr(2,5); }
   function genCode(){ var c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',s='';for(var i=0;i<6;i++)s+=c[Math.floor(Math.random()*c.length)];return s; }
   function showToast(msg){ var t=document.getElementById('toast');t.textContent=msg;t.classList.add('active');setTimeout(function(){t.classList.remove('active');},2000); }
@@ -808,11 +836,44 @@
   async function apiPost(p,b){ try{var r=await fetch(API+p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});return await r.json();}catch(e){return{ok:false};} }
   async function apiDelete(p){ try{var r=await fetch(API+p,{method:'DELETE'});return await r.json();}catch(e){return{ok:false};} }
 
+  // ===== 离线队列：断网时操作存本地，上线自动补发 =====
+  var offlineQueue=[];
+  var OFFLINE_KEY='fridge_offline_queue';
+  function saveOfflineQueue(){ try{localStorage.setItem(OFFLINE_KEY,JSON.stringify(offlineQueue));}catch(e){} }
+  function loadOfflineQueue(){ try{var q=JSON.parse(localStorage.getItem(OFFLINE_KEY));if(q&&q.length)offlineQueue=q;}catch(e){} }
+  function queueOp(method,path,body){
+    offlineQueue.push({method:method,path:path,body:body,time:Date.now()});
+    saveOfflineQueue();
+  }
+  async function flushOfflineQueue(){
+    if(!offlineQueue.length)return;
+    var batch=offlineQueue.slice(); // 复制一份
+    offlineQueue=[]; saveOfflineQueue();
+    for(var i=0;i<batch.length;i++){
+      var op=batch[i];
+      var result;
+      if(op.method==='POST') result=await apiPost(op.path,op.body);
+      else if(op.method==='DELETE') result=await apiDelete(op.path);
+      if(!result||!result.ok){
+        // 还在断网，放回队列，停止
+        offlineQueue=batch.slice(i).concat(offlineQueue);
+        saveOfflineQueue();
+        return;
+      }
+    }
+    // 全部成功，重新同步一次确保一致
+    await syncFromServer();
+  }
+
   async function syncFromServer(){
     if(!familyCode)return;
     var result=await apiGet('/api/sync?code='+familyCode+'&since='+lastSyncTime);
     var dot=document.getElementById('syncDot');
-    if(result.ok){ isOnline=true;dot.classList.remove('offline');
+    if(result.ok){ 
+      var wasOffline=!isOnline;
+      isOnline=true;dot.classList.remove('offline');document.getElementById('offlineBanner').classList.remove('visible');
+      // 从离线恢复：补发队列
+      if(wasOffline&&offlineQueue.length){flushOfflineQueue();}
       if(result.family){
         if(result.family.members)Object.keys(result.family.members).forEach(function(mid){members[mid]=result.family.members[mid];});
         if(result.family.notes)Object.keys(result.family.notes).forEach(function(nid){
@@ -834,7 +895,7 @@
         });
         lastSyncTime=result.serverTime||0;saveLocal();updateUI();
       }
-    }else{isOnline=false;dot.classList.add('offline');}
+    }else{isOnline=false;dot.classList.add('offline');document.getElementById('offlineBanner').classList.add('visible');}
   }
   function startSync(){if(syncTimer)clearInterval(syncTimer);syncFromServer();syncTimer=setInterval(syncFromServer,1500);}
   // 时间痕迹：每60秒刷新一次所有便签的不透明度（冰箱慢慢变老）
@@ -948,10 +1009,21 @@
       setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},380);
       delete noteElements[id];
     }
-    updateUI();
-    if(familyCode) await apiDelete('/api/note?code='+familyCode+'&id='+id);
+    updateUI(); saveLocal();
+    if(familyCode){
+      var result=await apiDelete('/api/note?code='+familyCode+'&id='+id);
+      if(!result||!result.ok) queueOp('DELETE','/api/note?code='+familyCode+'&id='+id);
+    }
   }
-  async function saveNoteToServer(id,n){ if(!familyCode)return; await apiPost('/api/note',{code:familyCode,id:id,note:n}); }
+  async function saveNoteToServer(id,n){
+    if(!familyCode)return;
+    saveLocal(); // 无论在线离线，先存本地
+    var result=await apiPost('/api/note',{code:familyCode,id:id,note:n});
+    if(!result||!result.ok){
+      // 离线：加入队列，等上线补发
+      queueOp('POST','/api/note',{code:familyCode,id:id,note:n});
+    }
+  }
 
   // ===== 图片吸附便签逻辑 =====
   // 拖动图片冰箱贴结束时，检测是否靠近某张便签边缘，吸附上去
@@ -1027,6 +1099,7 @@
         if(n.itemType==='photo'){ snapPhotoToNote(id); }
         n.updatedAt=Date.now()/1000;
         pendingSaves[id]=true;localDirty[id]=true;
+        saveLocal(); // 拖拽位置变化也存本地
         saveNoteToServer(id,n).then(function(){delete pendingSaves[id];delete localDirty[id];});
         // 只播放贴上bounce动效，不同时放两个动画
         el.classList.remove('sticking');void el.offsetWidth;el.classList.add('sticking');setTimeout(function(){el.classList.remove('sticking');},450);
@@ -1353,11 +1426,15 @@
   });
 
   // ===== 初始化 =====
-  loadLocal();updateUI();
+  loadLocal();loadOfflineQueue();updateUI();
   if(familyCode){
     hideLanding();
+    // 先渲染本地缓存的便签（秒开）
+    renderAllNotes();
     apiPost('/api/member',{code:familyCode,id:myId,member:{name:myName,color:myColor}});
     startSync();startAgeTick();
+    // 如果有离线队列，先尝试补发
+    if(offlineQueue.length){flushOfflineQueue();}
     (async function(){
       var result=await apiGet('/api/sync?code='+familyCode+'&since=0');
       if(result.ok&&result.family){

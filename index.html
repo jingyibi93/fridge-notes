@@ -1003,15 +1003,17 @@
   function formatTime(ts){ var d=new Date(ts),mm=d.getMonth()+1,dd=d.getDate(),hh=String(d.getHours()).padStart(2,'0'),mi=String(d.getMinutes()).padStart(2,'0');return mm+'/'+dd+' '+hh+':'+mi; }
 
   // ===== 时间痕迹：便签随时间褪色，冰箱在"变旧" =====
-  // 指数衰减曲线：4小时完全新鲜 → 1天轻微褪色 → 1周明显旧 → 2周半透明
+  // 当天不过期，过了24:00开始指数衰减褪色
   // hover/触摸时恢复完全不透明，像"吹去灰尘"
   function calcAgeOpacity(updatedAt){
     var now=Date.now()/1000;
     var ts=updatedAt; if(!ts)return 1;
-    var hours=(now-ts)/3600;
-    if(hours<4)return 1.0; // 4小时保鲜期
-    var days=hours/24;
-    // 指数衰减 τ=5天：优雅自然的老化曲线
+    // 计算便签所在日期的下一个00:00（即褪色起始时刻）
+    var d=new Date(ts*1000);
+    var nextMidnight=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1).getTime()/1000;
+    if(now<nextMidnight)return 1.0; // 当天保鲜，不褪色
+    // 过了午夜，按天数衰减 τ=5天
+    var days=(now-nextMidnight)/86400;
     var opacity=1.0-0.80*(1-Math.exp(-days/5));
     return Math.max(0.20,opacity);
   }

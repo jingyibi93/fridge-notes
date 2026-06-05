@@ -998,7 +998,7 @@
     }catch(e){}
   }
   function genId(){ return Date.now().toString(36)+Math.random().toString(36).substr(2,5); }
-  function genCode(){ var c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',s='';for(var i=0;i<6;i++)s+=c[Math.floor(Math.random()*c.length)];return s; }
+  function genCode(){ var c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',s='';for(var i=0;i<8;i++)s+=c[Math.floor(Math.random()*c.length)];return s; }
   function showToast(msg){ var t=document.getElementById('toast');t.textContent=msg;t.classList.add('active');setTimeout(function(){t.classList.remove('active');},2000); }
   function formatTime(ts){ var d=new Date(ts),mm=d.getMonth()+1,dd=d.getDate(),hh=String(d.getHours()).padStart(2,'0'),mi=String(d.getMinutes()).padStart(2,'0');return mm+'/'+dd+' '+hh+':'+mi; }
 

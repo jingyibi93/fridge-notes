@@ -2235,19 +2235,35 @@
 
     // 后台：拉取已有成员和便签（不阻塞UI）
     apiGet('/api/sync?code='+code+'&since=0').then(function(existingData){
-      if(existingData.ok&&existingData.family&&existingData.family.members){
-        var existingMembers=existingData.family.members;
-        // 如果已有同名成员（包括已离开的），复用其ID，清除_left标记
-        Object.keys(existingMembers).forEach(function(mid){
-          var em=existingMembers[mid];
-          if(em.name===name){
-            myId=mid;myColor=em.color||myColor;
-            em._left=false;
-          }
-        });
-        members=Object.assign({},existingMembers);
-        members[myId]={name:myName,color:myColor};
+      if(existingData.ok&&existingData.family){
+        // 处理成员
+        if(existingData.family.members){
+          var existingMembers=existingData.family.members;
+          // 如果已有同名成员（包括已离开的），复用其ID，清除_left标记
+          Object.keys(existingMembers).forEach(function(mid){
+            var em=existingMembers[mid];
+            if(em.name===name){
+              myId=mid;myColor=em.color||myColor;
+              em._left=false;
+            }
+          });
+          members=Object.assign({},existingMembers);
+          members[myId]={name:myName,color:myColor};
+        }
+        // 处理便签
+        if(existingData.family.notes){
+          var serverNotes=existingData.family.notes;
+          Object.keys(serverNotes).forEach(function(nid){
+            var n=serverNotes[nid];
+            if(n._deleted){delete notes[nid];removeNoteEl(nid);}
+            else{normalizeNotePos(n);notes[nid]=n;renderNote(nid);}
+          });
+        }
+        // 更新同步时间戳，避免syncFromServer重复拉取
+        lastSyncTime=Math.max(0,(existingData.serverTime||0)-2);
+        if(existingData.family.updatedAt)lastServerUpdatedAt=existingData.family.updatedAt;
         saveLocal();updateUI();
+        showToast('同步完成！');
       }
     });
 

@@ -185,6 +185,7 @@
     .note-author { font-size: min(11px, 2.8vw); font-weight: 600; padding: 1px 7px; border-radius: 4px; background: rgba(0,0,0,0.03); }
     .note-time   { font-size: min(10px, 2.5vw); color: rgba(0,0,0,0.25); }
     .note-type-badge { position: absolute; top: 7px; left: 10px; font-size: min(14px, 3.5vw); }
+    .note-reminder-time { position: absolute; top: 6px; right: 24px; font-size: 9px; color: #ef6c00; background: rgba(239,108,0,0.1); padding: 1px 5px; border-radius: 6px; }
     .note-delete {
       position: absolute; top: 5px; right: 6px;
       width: 22px; height: 22px; border-radius: 50%; border: none;
@@ -376,6 +377,34 @@
       background: rgba(255,255,255,0.6);
       border: 1px solid rgba(0,0,0,0.1); border-radius: 20px;
       padding: 0 4px 0 0;
+    }
+    .reader-actions {
+      display: flex; gap: 8px; margin: 6px 0 2px;
+    }
+    .reader-action-btn {
+      border: none; border-radius: 14px; padding: 5px 12px;
+      background: rgba(0,0,0,0.06); color: #555;
+      font-size: 12px; cursor: pointer; transition: background 0.15s;
+    }
+    .reader-action-btn:active { background: rgba(0,0,0,0.12); }
+    .reader-action-btn.active { background: rgba(52,152,219,0.15); color: #2980b9; }
+    /* 提醒闪烁动画 */
+    @keyframes reminderPulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(231,76,60,0); }
+      50% { box-shadow: 0 0 18px 4px rgba(231,76,60,0.5); }
+    }
+    .note.reminder-active {
+      animation: reminderPulse 1s ease infinite;
+      z-index: 999 !important;
+    }
+    /* 保鲜标记 */
+    .note .preserve-badge {
+      position: absolute; top: -4px; right: -4px;
+      background: rgba(52,152,219,0.9); color: #fff;
+      font-size: 10px; width: 18px; height: 18px;
+      border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; z-index: 2;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.2);
     }
     .reader-input {
       flex: 1; border: none; border-radius: 20px;
@@ -852,6 +881,10 @@
       <div class="type-option type-reminder-opt" data-type="reminder"><span class="type-emoji">📅</span><span class="type-label">提醒事项</span></div>
       <div class="type-option type-message-opt" data-type="message"><span class="type-emoji">💬</span><span class="type-label">日常留言</span></div>
     </div>
+    <div id="reminderTimeRow" style="display:none;margin-top:8px;">
+      <label style="font-size:12px;color:rgba(255,255,255,0.6);margin-bottom:4px;display:block;">提醒时间</label>
+      <input type="datetime-local" id="reminderTimeInput" style="width:100%;padding:8px 10px;border-radius:10px;border:none;background:rgba(255,255,255,0.12);color:#fff;font-size:14px;">
+    </div>
   </div>
   <div class="sheet-actions">
     <button class="sheet-btn cancel" id="addCancel">取消</button>
@@ -916,6 +949,10 @@
       <span class="reader-author" id="readerAuthor"></span>
       <span class="reader-time" id="readerTime"></span>
     </div>
+    <div class="reader-actions" id="readerActions">
+      <button class="reader-action-btn" id="btnPreserve" title="保鲜：永不褪色">🧊 保鲜</button>
+    </div>
+    <div id="readerReminderInfo" style="display:none;font-size:12px;color:#ef6c00;margin:2px 0;"></div>
     <div class="reader-comments" id="readerComments"></div>
     <div class="reader-input-wrap">
       <input type="text" class="reader-input" id="readerInput" placeholder="写评论...">
@@ -1020,13 +1057,28 @@
     return Math.max(0.20,opacity);
   }
   function getFadedAt(n){
-    return n.time?n.time/1000:0;
+    return n.time?n.time/1000:Date.now()/1000;
+  }
+  function calcNoteOpacity(n){
+    if(n.preserved)return 1.0; // 保鲜便签永不褪色
+    return calcAgeOpacity(getFadedAt(n));
+  }
+  function updateReminderBadge(el,n){
+    var rtm=el.querySelector('.note-reminder-time');
+    if(!rtm)return;
+    if(n.type==='reminder'&&n.reminderTime){
+      var rd=new Date(n.reminderTime);
+      rtm.textContent=String(rd.getHours()).padStart(2,'0')+':'+String(rd.getMinutes()).padStart(2,'0');
+      rtm.style.display='block';
+    }else{
+      rtm.style.display='none';
+    }
   }
   function applyAgeOpacity(id){
     var n=notes[id]; if(!n)return;
     var el=noteElements[id]; if(!el)return;
     if(el.classList.contains('sticking')||el.classList.contains('snapping')||el.classList.contains('dragging')||el.classList.contains('peeling'))return;
-    el.style.opacity=calcAgeOpacity(getFadedAt(n));
+    el.style.opacity=calcNoteOpacity(n);
   }
   function refreshAllAgeOpacity(){
     Object.keys(notes).forEach(function(id){applyAgeOpacity(id);});
@@ -1160,6 +1212,53 @@
   var ageTimer=null;
   function startAgeTick(){if(ageTimer)clearInterval(ageTimer);refreshAllAgeOpacity();ageTimer=setInterval(refreshAllAgeOpacity,60000);}
 
+  // ===== 保鲜功能 =====
+  document.getElementById('btnPreserve').addEventListener('click',function(){
+    if(!readerCurrentId)return;
+    var n=notes[readerCurrentId]; if(!n)return;
+    n.preserved=!n.preserved;
+    saveLocal();
+    saveNoteToServer(readerCurrentId,n);
+    var btnP=document.getElementById('btnPreserve');
+    if(n.preserved){btnP.textContent='🧊 已保鲜';btnP.classList.add('active');showToast('已保鲜，永不褪色');}
+    else{btnP.textContent='🧊 保鲜';btnP.classList.remove('active');showToast('已取消保鲜');}
+    // 立即更新透明度
+    var el=noteElements[readerCurrentId];
+    if(el)el.style.opacity=calcNoteOpacity(n);
+    // 更新冰箱上的保鲜标记
+    renderNote(readerCurrentId);
+  });
+
+  // ===== 提醒通知 =====
+  // 请求通知权限
+  if('Notification' in window && Notification.permission==='default'){
+    Notification.requestPermission();
+  }
+  var reminderTimer=null;
+  function checkReminders(){
+    var now=Date.now();
+    Object.keys(notes).forEach(function(id){
+      var n=notes[id];
+      if(n.type!=='reminder'||!n.reminderTime||n.reminderFired)return;
+      if(now>=n.reminderTime){
+        n.reminderFired=true;
+        saveLocal();
+        saveNoteToServer(id,n);
+        // 便签闪烁
+        var el=noteElements[id];
+        if(el){el.classList.add('reminder-active');}
+        // 浏览器通知
+        if('Notification' in window && Notification.permission==='granted'){
+          try{new Notification('📅 提醒时间到！',{body:n.text||'你有一条提醒',icon:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"><text y="32" font-size="32">📅</text></svg>'});}catch(e){}
+        }
+        showToast('⏰ 提醒：'+(n.text||''));
+        // 30秒后停止闪烁
+        setTimeout(function(){if(el)el.classList.remove('reminder-active');},30000);
+      }
+    });
+  }
+  function startReminderCheck(){if(reminderTimer)clearInterval(reminderTimer);checkReminders();reminderTimer=setInterval(checkReminders,30000);}
+
   // ===== 渲染 =====
   var container=document.getElementById('notesContainer');
   var fridge=document.getElementById('fridge');
@@ -1185,7 +1284,7 @@
       el.querySelector('.photo-inner img').src=n.imageData||'';
       el.querySelector('.photo-author').textContent=n.authorName||'';
       el.querySelector('.photo-author').style.color=n.authorColor||'#666';
-      el.style.opacity=calcAgeOpacity(getFadedAt(n));
+      el.style.opacity=calcNoteOpacity(n);
       return;
     }
     var ti=TYPE_INFO[n.type]||TYPE_INFO.message;
@@ -1217,7 +1316,12 @@
     el.querySelector('.note-author').textContent=n.authorName||'';
     el.querySelector('.note-author').style.color=n.authorColor||'#666';
     el.querySelector('.note-time').textContent=formatTime(n.time||Date.now());
-    el.style.opacity=calcAgeOpacity(getFadedAt(n));
+    el.style.opacity=calcNoteOpacity(n);
+    // 保鲜标记
+    var pb=el.querySelector('.preserve-badge');
+    if(pb){if(n.preserved){pb.style.display='flex';}else{pb.style.display='none';}}
+    // 提醒时间标记
+    updateReminderBadge(el,n);
   }
 
   function renderNote(id){
@@ -1251,7 +1355,7 @@
       el.querySelector('.photo-author').textContent=n.authorName||'';
       el.querySelector('.photo-author').style.color=n.authorColor||'#666';
       // 时间痕迹：褪色
-      el.style.opacity=calcAgeOpacity(getFadedAt(n));
+      el.style.opacity=calcNoteOpacity(n);
       return;
     }
 
@@ -1259,7 +1363,7 @@
     if(!el){
       el=document.createElement('div');
       el.className='note pinned'; el.dataset.noteId=id;
-      el.innerHTML='<div class="note-magnet"></div><div class="note-type-badge"></div><button class="note-delete">&times;</button><div class="note-content"></div><div class="note-comment-count" style="display:none">💬 <span></span></div><div class="note-meta"><span class="note-author"></span><span class="note-time"></span></div>';
+      el.innerHTML='<div class="note-magnet"></div><div class="note-type-badge"></div><div class="note-reminder-time" style="display:none"></div><button class="note-delete">&times;</button><div class="preserve-badge" style="display:none">🧊</div><div class="note-content"></div><div class="note-comment-count" style="display:none">💬 <span></span></div><div class="note-meta"><span class="note-author"></span><span class="note-time"></span></div>';
       container.appendChild(el); noteElements[id]=el;
       bindDrag(el,id);
       el.querySelector('.note-delete').addEventListener('click',function(e){e.stopPropagation();deleteNote(id);});
@@ -1304,10 +1408,13 @@
     el.querySelector('.note-author').style.color=n.authorColor||'#666';
     el.querySelector('.note-time').textContent=formatTime(n.time||Date.now());
     // 时间痕迹：褪色
-    el.style.opacity=calcAgeOpacity(getFadedAt(n));
+    el.style.opacity=calcNoteOpacity(n);
+    // 保鲜标记
+    var pb2=el.querySelector('.preserve-badge');
+    if(pb2){if(n.preserved){pb2.style.display='flex';}else{pb2.style.display='none';}}
+    // 提醒时间标记
+    updateReminderBadge(el,n);
   }
-
-  // 已从服务器删除的便签ID，防止本地残留数据补传复活
   var serverDeletedIds={};
   // 清理超过60秒的删除记录
   function cleanDeletedIds(){var now=Date.now();Object.keys(serverDeletedIds).forEach(function(id){if(now-serverDeletedIds[id]>60000)delete serverDeletedIds[id];});}
@@ -1509,6 +1616,18 @@
     // 便签背景色
     var bgMap={'type-shopping':'#fffde7','type-reminder':'#fff3e0','type-message':'#e8f5e9'};
     readerCard.style.background=bgMap[ti.cls]||'#fffde7';
+    // 保鲜按钮状态
+    var btnP=document.getElementById('btnPreserve');
+    if(n.preserved){btnP.textContent='🧊 已保鲜';btnP.classList.add('active');}
+    else{btnP.textContent='🧊 保鲜';btnP.classList.remove('active');}
+    // 提醒时间显示
+    var reminderInfo=document.getElementById('readerReminderInfo');
+    if(n.type==='reminder'&&n.reminderTime){
+      var rDate=new Date(n.reminderTime);
+      var rStr='提醒：'+(rDate.getMonth()+1)+'/'+rDate.getDate()+' '+String(rDate.getHours()).padStart(2,'0')+':'+String(rDate.getMinutes()).padStart(2,'0');
+      if(n.reminderFired)rStr+=' ✅已提醒';
+      reminderInfo.textContent=rStr;reminderInfo.style.display='block';
+    }else{reminderInfo.style.display='none';}
     renderComments(id);
     noteReader.classList.add('active');
     document.getElementById('readerInput').value='';
@@ -1645,12 +1764,16 @@
   document.getElementById('chooseNote').addEventListener('click',function(){
     closeSheet('chooseSheet','chooseOverlay');
     document.getElementById('noteText').value='';
+    document.getElementById('reminderTimeInput').value='';
+    document.getElementById('reminderTimeRow').style.display='none';
     openSheet('addSheet','addOverlay');
     setTimeout(function(){document.getElementById('noteText').focus();},400);
   });
   document.getElementById('chooseNote').addEventListener('touchend',function(e){
     e.preventDefault();closeSheet('chooseSheet','chooseOverlay');
     document.getElementById('noteText').value='';
+    document.getElementById('reminderTimeInput').value='';
+    document.getElementById('reminderTimeRow').style.display='none';
     openSheet('addSheet','addOverlay');
     setTimeout(function(){document.getElementById('noteText').focus();},400);
   });
@@ -1708,14 +1831,28 @@
 
   // ===== 新建文字便签 =====
   var noteText=document.getElementById('noteText');
-  document.getElementById('addOverlay').addEventListener('click',function(){closeSheet('addSheet','addOverlay');});
-  document.getElementById('addCancel').addEventListener('click',function(){closeSheet('addSheet','addOverlay');});
-  document.getElementById('addCancel').addEventListener('touchend',function(e){e.preventDefault();closeSheet('addSheet','addOverlay');});
+  document.getElementById('addOverlay').addEventListener('click',function(){closeSheet('addSheet','addOverlay');resetAddForm();});
+  document.getElementById('addCancel').addEventListener('click',function(){closeSheet('addSheet','addOverlay');resetAddForm();});
+  document.getElementById('addCancel').addEventListener('touchend',function(e){e.preventDefault();closeSheet('addSheet','addOverlay');resetAddForm();});
   document.getElementById('addConfirm').addEventListener('click',addNewNote);
   document.getElementById('addConfirm').addEventListener('touchend',function(e){e.preventDefault();addNewNote();});
 
+  function resetAddForm(){
+    selectedType='shopping';
+    document.querySelectorAll('.type-option').forEach(function(o){o.classList.remove('selected');});
+    document.querySelector('.type-shopping-opt').classList.add('selected');
+    document.getElementById('reminderTimeInput').value='';
+    document.getElementById('reminderTimeRow').style.display='none';
+  }
+
   async function addNewNote(){
     var text=noteText.value.trim();if(!text){showToast('写点什么吧');return;}
+    // 提醒事项必须设提醒时间
+    if(selectedType==='reminder'){
+      var rtVal2=document.getElementById('reminderTimeInput').value;
+      if(!rtVal2){showToast('请设置提醒时间');return;}
+      if(new Date(rtVal2).getTime()<=Date.now()){showToast('提醒时间要晚于现在');return;}
+    }
     // 提取@提及的成员ID
     var mentions=[];
     Object.keys(members).forEach(function(mid){
@@ -1726,11 +1863,18 @@
       }
     });
     var id=genId();
+    // 提醒时间
+    var reminderTime=0;
+    if(selectedType==='reminder'){
+      var rtVal=document.getElementById('reminderTimeInput').value;
+      if(rtVal)reminderTime=new Date(rtVal).getTime();
+    }
     var n={
       text:text, type:selectedType, itemType:'text',
       authorId:myId, authorName:myName, authorColor:myColor,
       mentions:mentions,
       time:Date.now(), updatedAt:Date.now()/1000,
+      reminderTime:reminderTime,
       x: 3+Math.random()*70, y: 2+Math.random()*75,
       z:++maxZ, rotate:(Math.random()-0.5)*8,
       tapeRotate:(Math.random()-0.5)*10, pinned:true, posUnit:'pct',
@@ -1738,15 +1882,15 @@
       magnetRotate:(Math.random()-0.5)*20
     };
     notes[id]=n; renderNote(id);
-    closeSheet('addSheet','addOverlay');
+    closeSheet('addSheet','addOverlay'); resetAddForm();
     var el=noteElements[id];if(el){el.classList.add('sticking');setTimeout(function(){el.classList.remove('sticking');},450);}
     updateUI(); updateBellBadge(); pendingSaves[id]=true; await saveNoteToServer(id,n); delete pendingSaves[id];
   }
 
   // 类型选择
   document.querySelectorAll('.type-option').forEach(function(opt){
-    opt.addEventListener('click',function(){document.querySelectorAll('.type-option').forEach(function(o){o.classList.remove('selected');});opt.classList.add('selected');selectedType=opt.dataset.type;});
-    opt.addEventListener('touchend',function(e){e.preventDefault();document.querySelectorAll('.type-option').forEach(function(o){o.classList.remove('selected');});opt.classList.add('selected');selectedType=opt.dataset.type;});
+    opt.addEventListener('click',function(){document.querySelectorAll('.type-option').forEach(function(o){o.classList.remove('selected');});opt.classList.add('selected');selectedType=opt.dataset.type;document.getElementById('reminderTimeRow').style.display=selectedType==='reminder'?'block':'none';});
+    opt.addEventListener('touchend',function(e){e.preventDefault();document.querySelectorAll('.type-option').forEach(function(o){o.classList.remove('selected');});opt.classList.add('selected');selectedType=opt.dataset.type;document.getElementById('reminderTimeRow').style.display=selectedType==='reminder'?'block':'none';});
   });
 
   // ===== 加入家庭 =====
@@ -1770,7 +1914,7 @@
     document.getElementById('memberPanel').classList.remove('active');
     saveLocal();updateUI();
     await apiPost('/api/member',{code:familyCode,id:myId,member:{name:myName,color:myColor}});
-    startSync();startAgeTick();showToast('欢迎回家，'+myName+'！');
+    startSync();startAgeTick();startReminderCheck();showToast('欢迎回家，'+myName+'！');
   }
 
   document.getElementById('btnLeave').addEventListener('click',async function(){
@@ -1876,7 +2020,7 @@
     document.getElementById('memberPanel').classList.remove('active');
     saveLocal();updateUI();hideLanding();
     await apiPost('/api/member',{code:familyCode,id:myId,member:{name:myName,color:myColor}});
-    startSync();startAgeTick();showToast('欢迎回家，'+myName+'！');
+    startSync();startAgeTick();startReminderCheck();showToast('欢迎回家，'+myName+'！');
   };
   // 解绑旧事件，绑定新事件
   var confirmBtns = document.querySelectorAll('#joinConfirm');
@@ -2224,7 +2368,7 @@
     // 如果有离线队列，先尝试补发
     if(offlineQueue.length){flushOfflineQueue();}
     // startSync 首次调用会做全量同步（since=0），确保数据完整
-    startSync();startAgeTick();
+    startSync();startAgeTick();startReminderCheck();
     // updateBellBadge在startSync的异步回调里调用即可，这里不重复调
   }
   // 没有familyCode时保持landing显示，不再自动弹joinSheet

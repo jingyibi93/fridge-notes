@@ -1003,11 +1003,12 @@
   function formatTime(ts){ var d=new Date(ts),mm=d.getMonth()+1,dd=d.getDate(),hh=String(d.getHours()).padStart(2,'0'),mi=String(d.getMinutes()).padStart(2,'0');return mm+'/'+dd+' '+hh+':'+mi; }
 
   // ===== 时间痕迹：便签随时间褪色，冰箱在"变旧" =====
+  // 用 fadedAt 字段追踪褪色起点（创建/移动时更新），不受同步updatedAt影响
   // 当天不过期，过了24:00开始指数衰减褪色
   // hover/触摸时恢复完全不透明，像"吹去灰尘"
-  function calcAgeOpacity(updatedAt){
+  function calcAgeOpacity(fadedAt){
     var now=Date.now()/1000;
-    var ts=updatedAt; if(!ts)return 1;
+    var ts=fadedAt; if(!ts)return 1;
     // 计算便签所在日期的下一个00:00（即褪色起始时刻）
     var d=new Date(ts*1000);
     var nextMidnight=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1).getTime()/1000;
@@ -1017,12 +1018,14 @@
     var opacity=1.0-0.80*(1-Math.exp(-days/5));
     return Math.max(0.20,opacity);
   }
+  function getFadedAt(n){
+    return n.fadedAt||(n.time?n.time/1000:0);
+  }
   function applyAgeOpacity(id){
     var n=notes[id]; if(!n)return;
     var el=noteElements[id]; if(!el)return;
     if(el.classList.contains('sticking')||el.classList.contains('snapping')||el.classList.contains('dragging')||el.classList.contains('peeling'))return;
-    var ts=n.updatedAt||(n.time?n.time/1000:0);
-    el.style.opacity=calcAgeOpacity(ts);
+    el.style.opacity=calcAgeOpacity(getFadedAt(n));
   }
   function refreshAllAgeOpacity(){
     Object.keys(notes).forEach(function(id){applyAgeOpacity(id);});
@@ -1181,7 +1184,7 @@
       el.querySelector('.photo-inner img').src=n.imageData||'';
       el.querySelector('.photo-author').textContent=n.authorName||'';
       el.querySelector('.photo-author').style.color=n.authorColor||'#666';
-      el.style.opacity=calcAgeOpacity(n.updatedAt||(n.time?n.time/1000:0));
+      el.style.opacity=calcAgeOpacity(getFadedAt(n));
       return;
     }
     var ti=TYPE_INFO[n.type]||TYPE_INFO.message;
@@ -1213,7 +1216,7 @@
     el.querySelector('.note-author').textContent=n.authorName||'';
     el.querySelector('.note-author').style.color=n.authorColor||'#666';
     el.querySelector('.note-time').textContent=formatTime(n.time||Date.now());
-    el.style.opacity=calcAgeOpacity(n.updatedAt||(n.time?n.time/1000:0));
+    el.style.opacity=calcAgeOpacity(getFadedAt(n));
   }
 
   function renderNote(id){
@@ -1247,7 +1250,7 @@
       el.querySelector('.photo-author').textContent=n.authorName||'';
       el.querySelector('.photo-author').style.color=n.authorColor||'#666';
       // 时间痕迹：褪色
-      el.style.opacity=calcAgeOpacity(n.updatedAt||(n.time?n.time/1000:0));
+      el.style.opacity=calcAgeOpacity(getFadedAt(n));
       return;
     }
 
@@ -1300,7 +1303,7 @@
     el.querySelector('.note-author').style.color=n.authorColor||'#666';
     el.querySelector('.note-time').textContent=formatTime(n.time||Date.now());
     // 时间痕迹：褪色
-    el.style.opacity=calcAgeOpacity(n.updatedAt||(n.time?n.time/1000:0));
+    el.style.opacity=calcAgeOpacity(getFadedAt(n));
   }
 
   // 已从服务器删除的便签ID，防止本地残留数据补传复活
@@ -1418,6 +1421,7 @@
         // 图片冰箱贴吸附便签
         if(n.itemType==='photo'){ snapPhotoToNote(id); }
         n.updatedAt=Date.now()/1000;
+        n.fadedAt=Date.now()/1000; // 移动便签=重获新生
         pendingSaves[id]=true;localDirty[id]=true;
         saveLocal(); // 拖拽位置变化也存本地
         saveNoteToServer(id,n).then(function(){delete pendingSaves[id];delete localDirty[id];});
@@ -1688,7 +1692,7 @@
     var n={
       itemType:'photo', imageData:imageData,
       authorId:myId, authorName:myName, authorColor:myColor,
-      time:Date.now(), updatedAt:Date.now()/1000,
+      time:Date.now(), updatedAt:Date.now()/1000, fadedAt:Date.now()/1000,
       x: 3+Math.random()*70, y: 2+Math.random()*75,
       z:++maxZ, rotate:(Math.random()-0.5)*10,
       pinned:true, posUnit:'pct',
@@ -1726,7 +1730,7 @@
       text:text, type:selectedType, itemType:'text',
       authorId:myId, authorName:myName, authorColor:myColor,
       mentions:mentions,
-      time:Date.now(), updatedAt:Date.now()/1000,
+      time:Date.now(), updatedAt:Date.now()/1000, fadedAt:Date.now()/1000,
       x: 3+Math.random()*70, y: 2+Math.random()*75,
       z:++maxZ, rotate:(Math.random()-0.5)*8,
       tapeRotate:(Math.random()-0.5)*10, pinned:true, posUnit:'pct',

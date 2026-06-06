@@ -631,24 +631,52 @@
 
     /* member panel */
     .member-panel {
-      position: fixed; bottom: calc(60px + env(safe-area-inset-bottom)); left: 20px;
+      position: fixed; bottom: calc(28px + env(safe-area-inset-bottom)); left: 20px;
       background: rgba(40,40,55,0.92);
       backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-      border-radius: 16px; padding: 14px 16px; min-width: 200px; display: none; z-index: 250;
+      border-radius: 14px; padding: 10px 14px; min-width: 160px; max-width: 220px; display: none; z-index: 250;
       box-shadow: 0 8px 32px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08);
     }
     .member-panel.active { display: block; }
-    .member-panel-title { font-size: 11px; color: rgba(255,255,255,0.4); margin-bottom: 8px; letter-spacing: 2px; text-transform: uppercase; }
-    .member-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; }
-    .member-color { width: 10px; height: 10px; border-radius: 50%; }
-    .member-name { font-size: 13px; color: rgba(255,255,255,0.8); }
-    .member-me { font-size: 10px; color: rgba(255,255,255,0.3); margin-left: auto; }
-    .invite-row { margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; gap: 6px; align-items: center; }
-    .invite-code-display { font-size: 14px; color: #FDCB6E; font-weight: 600; letter-spacing: 2px; cursor: pointer; }
-    .btn-copy { font-size: 11px; padding: 3px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: transparent; color: rgba(255,255,255,0.5); cursor: pointer; }
-    .btn-copy:active { background: rgba(255,255,255,0.1); }
-    .btn-leave { display: block; margin-top: 10px; width: 100%; padding: 7px; border: 1px solid rgba(231,76,60,0.25); border-radius: 8px; background: transparent; color: rgba(231,76,60,0.5); font-size: 11px; cursor: pointer; }
+    .member-panel-title { font-size: 10px; color: rgba(255,255,255,0.4); margin-bottom: 6px; letter-spacing: 2px; text-transform: uppercase; }
+    .member-row { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
+    .member-color { width: 8px; height: 8px; border-radius: 50%; }
+    .member-name { font-size: 12px; color: rgba(255,255,255,0.8); }
+    .member-me { font-size: 9px; color: rgba(255,255,255,0.3); margin-left: auto; }
+    .btn-leave { display: block; margin-top: 6px; width: 100%; padding: 5px; border: 1px solid rgba(231,76,60,0.25); border-radius: 6px; background: transparent; color: rgba(231,76,60,0.5); font-size: 10px; cursor: pointer; }
     .btn-leave:active { background: rgba(231,76,60,0.1); }
+
+    /* share panel */
+    .share-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.4); z-index: 350; display: none; }
+    .share-overlay.active { display: block; }
+    .share-panel {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: rgba(40,40,55,0.96);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border-radius: 20px 20px 0 0; padding: 20px 24px calc(24px + env(safe-area-inset-bottom));
+      z-index: 351; display: none;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    .share-panel.active { display: block; }
+    .share-title { font-size: 16px; font-weight: 600; color: rgba(255,255,255,0.9); margin-bottom: 16px; text-align: center; }
+    .share-label { font-size: 11px; color: rgba(255,255,255,0.4); letter-spacing: 1px; margin-bottom: 6px; }
+    .share-code-row { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+    .share-code { font-size: 20px; color: #FDCB6E; font-weight: 700; letter-spacing: 3px; flex: 1; }
+    .share-copy-btn {
+      padding: 6px 14px; border-radius: 8px; border: none;
+      background: linear-gradient(135deg, #FDCB6E, #f0b429); color: #1a1a2e;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+    }
+    .share-copy-btn:active { opacity: 0.8; }
+    .share-members { margin-bottom: 16px; }
+    .share-member-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+    .share-member-color { width: 8px; height: 8px; border-radius: 50%; }
+    .share-member-name { font-size: 13px; color: rgba(255,255,255,0.7); }
+    .share-close-btn {
+      width: 100%; padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.15);
+      background: transparent; color: rgba(255,255,255,0.6); font-size: 14px; cursor: pointer;
+    }
+    .share-close-btn:active { background: rgba(255,255,255,0.05); }
 
     /* toast */
     .toast {
@@ -972,12 +1000,23 @@
 <div class="member-panel" id="memberPanel">
   <div class="member-panel-title">家庭成员</div>
   <div id="memberList"></div>
-  <div class="invite-row">
-    <span style="color:rgba(255,255,255,0.4);font-size:11px">邀请码：</span>
-    <span class="invite-code-display" id="inviteCodeDisplay">---</span>
-    <button class="btn-copy" id="btnCopy">复制</button>
-  </div>
   <button class="btn-leave" id="btnLeave">离开家庭</button>
+</div>
+
+<!-- Share Panel -->
+<div class="share-overlay" id="shareOverlay"></div>
+<div class="share-panel" id="sharePanel">
+  <div class="share-title">🔗 邀请家人</div>
+  <div class="share-code-row">
+    <span class="share-label">邀请码</span>
+    <span class="share-code" id="shareCode">---</span>
+    <button class="share-copy-btn" id="shareCopyBtn">复制</button>
+  </div>
+  <div class="share-members">
+    <div class="share-label">家庭成员</div>
+    <div id="shareMemberList"></div>
+  </div>
+  <button class="share-close-btn" id="shareCloseBtn">关闭</button>
 </div>
 
 <!-- Notification Panel -->
@@ -1899,7 +1938,7 @@
     badge.textContent=familyCode?'\uD83C\uDFE0 '+familyCode:'未加入';
     var ml=document.getElementById('memberList');ml.innerHTML='';
     Object.keys(members).forEach(function(mid){var m=members[mid];if(m._left)return;var row=document.createElement('div');row.className='member-row';row.innerHTML='<div class="member-color" style="background:'+m.color+'"></div><span class="member-name">'+(m.name||'匿名')+'</span>'+(mid===myId?'<span class="member-me">我</span>':'');ml.appendChild(row);});
-    document.getElementById('inviteCodeDisplay').textContent=familyCode||'---';
+    // inviteCodeDisplay已移除，邀请码在分享面板显示
   }
 
   // ===== Sheet 控制 =====
@@ -2066,7 +2105,8 @@
 
   document.getElementById('myAvatar').addEventListener('click',function(){if(familyCode)document.getElementById('memberPanel').classList.toggle('active');else openSheet('joinSheet','joinOverlay');});
   document.getElementById('myAvatar').addEventListener('touchend',function(e){e.preventDefault();if(familyCode)document.getElementById('memberPanel').classList.toggle('active');else openSheet('joinSheet','joinOverlay');});
-  document.getElementById('btnInvite').addEventListener('click',function(){if(!familyCode){openSheet('joinSheet','joinOverlay');return;}document.getElementById('memberPanel').classList.toggle('active');});
+  document.getElementById('btnInvite').addEventListener('click',function(){if(!familyCode){openSheet('joinSheet','joinOverlay');return;}showSharePanel();});
+  document.getElementById('btnInvite').addEventListener('touchend',function(e){e.preventDefault();if(!familyCode){openSheet('joinSheet','joinOverlay');return;}showSharePanel();});
   document.getElementById('joinOverlay').addEventListener('click',function(){closeSheet('joinSheet','joinOverlay');});
   document.getElementById('joinCancel').addEventListener('click',function(){closeSheet('joinSheet','joinOverlay');});
   document.getElementById('joinConfirm').addEventListener('click',joinFamily);
@@ -2093,7 +2133,29 @@
 
     if(syncTimer)clearInterval(syncTimer);saveLocal();updateUI();showToast('已离开');
   });
-  document.getElementById('btnCopy').addEventListener('click',function(){if(!familyCode)return;if(navigator.clipboard){navigator.clipboard.writeText(familyCode).then(function(){showToast('已复制：'+familyCode);});}else showToast(familyCode);});
+  // ===== 分享面板 =====
+  function showSharePanel(){
+    if(!familyCode)return;
+    document.getElementById('shareCode').textContent=familyCode;
+    var sml=document.getElementById('shareMemberList');sml.innerHTML='';
+    Object.keys(members).forEach(function(mid){
+      var m=members[mid];if(m._left)return;
+      var row=document.createElement('div');row.className='share-member-row';
+      row.innerHTML='<div class="share-member-color" style="background:'+m.color+'"></div><span class="share-member-name">'+(m.name||'匿名')+(mid===myId?' (我)':'')+'</span>';
+      sml.appendChild(row);
+    });
+    document.getElementById('shareOverlay').classList.add('active');
+    document.getElementById('sharePanel').classList.add('active');
+  }
+  function closeSharePanel(){
+    document.getElementById('shareOverlay').classList.remove('active');
+    document.getElementById('sharePanel').classList.remove('active');
+  }
+  document.getElementById('shareCopyBtn').addEventListener('click',function(){if(!familyCode)return;if(navigator.clipboard){navigator.clipboard.writeText(familyCode).then(function(){showToast('已复制：'+familyCode);});}else showToast(familyCode);});
+  document.getElementById('shareCopyBtn').addEventListener('touchend',function(e){e.preventDefault();if(!familyCode)return;if(navigator.clipboard){navigator.clipboard.writeText(familyCode).then(function(){showToast('已复制：'+familyCode);});}else showToast(familyCode);});
+  document.getElementById('shareCloseBtn').addEventListener('click',closeSharePanel);
+  document.getElementById('shareCloseBtn').addEventListener('touchend',function(e){e.preventDefault();closeSharePanel();});
+  document.getElementById('shareOverlay').addEventListener('click',closeSharePanel);
   fridge.addEventListener('click',function(e){if(e.target===fridge)document.getElementById('memberPanel').classList.remove('active');});
   document.getElementById('bgLayer').addEventListener('click',function(){document.getElementById('memberPanel').classList.remove('active');});
 

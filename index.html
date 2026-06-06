@@ -139,7 +139,7 @@
     }
     .note:hover {
       box-shadow: 0 1px 2px rgba(0,0,0,0.1), 0 4px 8px rgba(0,0,0,0.1), 0 8px 24px rgba(0,0,0,0.15), 0 0 20px rgba(255,255,255,0.08);
-      filter: brightness(1.02); opacity: 1 !important;
+      filter: brightness(1.02);
     }
     .note.dragging {
       cursor: grabbing; z-index: 50;
@@ -205,7 +205,7 @@
       transition: box-shadow 0.25s cubic-bezier(0.4,0,0.2,1), filter 0.25s ease, opacity 2s ease;
       touch-action: none; will-change: transform;
     }
-    .photo-magnet:hover { filter: brightness(1.05); opacity: 1 !important; }
+    .photo-magnet:hover { filter: brightness(1.05); }
     .photo-magnet.dragging {
       cursor: grabbing; z-index: 200;
       transform: scale(1.1) rotate(0deg) !important; filter: brightness(1.06);
@@ -1005,7 +1005,6 @@
   // ===== 时间痕迹：便签随时间褪色，冰箱在"变旧" =====
   // 用 fadedAt 字段追踪褪色起点（创建/移动时更新），不受同步updatedAt影响
   // 当天不过期，过了24:00开始指数衰减褪色
-  // hover/触摸时恢复完全不透明，像"吹去灰尘"
   function calcAgeOpacity(fadedAt){
     var now=Date.now()/1000;
     var ts=fadedAt; if(!ts)return 1;
@@ -1412,7 +1411,7 @@
   // ===== 通用拖动 =====
   function bindDrag(el,id){
     var startX,startY,startLeftPct,startTopPct,moved;
-    function onStart(cx,cy){ var n=notes[id];if(!n)return;normalizeNotePos(n);n.z=++maxZ;el.style.zIndex=n.z;startX=cx;startY=cy;startLeftPct=n.x;startTopPct=n.y;moved=false;el.classList.add('dragging');el.style.opacity=1; }
+    function onStart(cx,cy){ var n=notes[id];if(!n)return;normalizeNotePos(n);n.z=++maxZ;el.style.zIndex=n.z;startX=cx;startY=cy;startLeftPct=n.x;startTopPct=n.y;moved=false;el.classList.add('dragging'); }
     function onMove(cx,cy){ var dx=cx-startX,dy=cy-startY;if(Math.abs(dx)>3||Math.abs(dy)>3)moved=true;if(!moved)return;var fw=fridge.clientWidth,fh=fridge.clientHeight;var nxPct=startLeftPct+(dx/fw*100),nyPct=startTopPct+(dy/fh*100);nxPct=Math.max(-10,Math.min(88,nxPct));nyPct=Math.max(-5,Math.min(88,nyPct));notes[id].x=nxPct;notes[id].y=nyPct;localDirty[id]=true;el.style.left=nxPct+'%';el.style.top=nyPct+'%'; }
     function onEnd(){
       el.classList.remove('dragging');

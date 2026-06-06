@@ -1047,26 +1047,37 @@
   // ===== 时间痕迹：便签随时间褪色，冰箱在"变旧" =====
   // 用 fadedAt 字段追踪褪色起点（创建/移动时更新），不受同步updatedAt影响
   // 当天不褪色，前一天开始变透明，越早越透明，最低20%
-  function calcAgeOpacity(fadedAt){
+  function calcAgeInfo(fadedAt){
     var now=Date.now()/1000;
-    var ts=fadedAt; if(!ts)return 1;
+    var ts=fadedAt; if(!ts)return {opacity:1,saturate:100};
     var noteDate=new Date(ts*1000);
     var todayDate=new Date();
-    // 算相隔几天（按日期算，不是24小时）
     var noteDay=new Date(noteDate.getFullYear(),noteDate.getMonth(),noteDate.getDate());
     var today=new Date(todayDate.getFullYear(),todayDate.getMonth(),todayDate.getDate());
     var daysDiff=Math.floor((today-noteDay)/86400000);
-    if(daysDiff<=0)return 1.0; // 当天，不褪色
-    // 每多1天减15%，最低5%（近乎无色透明）
-    var opacity=1.0-daysDiff*0.15;
-    return Math.max(0.05,opacity);
+    if(daysDiff<=0)return {opacity:1,saturate:100}; // 当天，不褪色
+    // 每多1天：透明度减12%（最低8%），饱和度减20%（最低0%灰白）
+    var opacity=1.0-daysDiff*0.12;
+    var saturate=100-daysDiff*20;
+    return {opacity:Math.max(0.08,opacity), saturate:Math.max(0,saturate)};
   }
   function getFadedAt(n){
     return n.time?n.time/1000:Date.now()/1000;
   }
   function calcNoteOpacity(n){
-    if(n.preserved)return 1.0; // 保鲜便签永不褪色
-    return calcAgeOpacity(getFadedAt(n));
+    if(n.preserved)return 1.0; // 保鲜便签永不褪色（兼容旧调用）
+    var info=calcAgeInfo(getFadedAt(n));
+    return info.opacity;
+  }
+  function applyAgeFilter(el,n){
+    if(n.preserved){el.style.filter='';el.style.opacity='1';return;}
+    var info=calcAgeInfo(getFadedAt(n));
+    el.style.opacity=info.opacity;
+    if(info.saturate<100){
+      el.style.filter='saturate('+info.saturate+'%)';
+    }else{
+      el.style.filter='';
+    }
   }
   function updateReminderBadge(el,n){
     var rtm=el.querySelector('.note-reminder-time');
@@ -1083,7 +1094,7 @@
     var n=notes[id]; if(!n)return;
     var el=noteElements[id]; if(!el)return;
     if(el.classList.contains('sticking')||el.classList.contains('snapping')||el.classList.contains('dragging')||el.classList.contains('peeling'))return;
-    el.style.opacity=calcNoteOpacity(n);
+    applyAgeFilter(el,n);
   }
   function refreshAllAgeOpacity(){
     Object.keys(notes).forEach(function(id){applyAgeOpacity(id);});
@@ -1229,7 +1240,7 @@
     else{btnP.textContent='🧊 保鲜';btnP.classList.remove('active');showToast('已取消保鲜');}
     // 立即更新透明度
     var el=noteElements[readerCurrentId];
-    if(el)el.style.opacity=calcNoteOpacity(n);
+    if(el)applyAgeFilter(el,n);
     // 更新冰箱上的保鲜标记
     renderNote(readerCurrentId);
   });
@@ -1289,7 +1300,7 @@
       el.querySelector('.photo-inner img').src=n.imageData||'';
       el.querySelector('.photo-author').textContent=n.authorName||'';
       el.querySelector('.photo-author').style.color=n.authorColor||'#666';
-      el.style.opacity=calcNoteOpacity(n);
+      applyAgeFilter(el,n);
       return;
     }
     var ti=TYPE_INFO[n.type]||TYPE_INFO.message;
@@ -1321,7 +1332,7 @@
     el.querySelector('.note-author').textContent=n.authorName||'';
     el.querySelector('.note-author').style.color=n.authorColor||'#666';
     el.querySelector('.note-time').textContent=formatTime(n.time||Date.now());
-    el.style.opacity=calcNoteOpacity(n);
+    applyAgeFilter(el,n);
     // 保鲜标记
     var pb=el.querySelector('.preserve-badge');
     if(pb){if(n.preserved){pb.style.display='flex';}else{pb.style.display='none';}}
@@ -1360,7 +1371,7 @@
       el.querySelector('.photo-author').textContent=n.authorName||'';
       el.querySelector('.photo-author').style.color=n.authorColor||'#666';
       // 时间痕迹：褪色
-      el.style.opacity=calcNoteOpacity(n);
+      applyAgeFilter(el,n);
       return;
     }
 
@@ -1412,8 +1423,8 @@
     el.querySelector('.note-author').textContent=n.authorName||'';
     el.querySelector('.note-author').style.color=n.authorColor||'#666';
     el.querySelector('.note-time').textContent=formatTime(n.time||Date.now());
-    // 时间痕迹：褪色
-    el.style.opacity=calcNoteOpacity(n);
+    // 时间痕迹：褪色+去色
+    applyAgeFilter(el,n);
     // 保鲜标记
     var pb2=el.querySelector('.preserve-badge');
     if(pb2){if(n.preserved){pb2.style.display='flex';}else{pb2.style.display='none';}}

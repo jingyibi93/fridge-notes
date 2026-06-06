@@ -1,19 +1,19 @@
-const CACHE_NAME = 'fridge-v1';
-const STATIC_ASSETS = [
-  '/',
-  '/manifest.json',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512.png'
-];
+const CACHE_NAME = 'fridge-v2';
 
-// 安装：缓存静态资源
+// 安装：不阻塞，缓存尽力而为
 self.addEventListener('install', function(event) {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(function(cache) {
-      return cache.addAll(STATIC_ASSETS);
+      // 逐个缓存，单个失败不影响整体
+      return Promise.allSettled([
+        cache.add('/'),
+        cache.add('/manifest.json'),
+        cache.add('/icons/icon-192x192.png'),
+        cache.add('/icons/icon-512x512.png')
+      ]);
     })
   );
-  self.skipWaiting();
 });
 
 // 激活：清理旧缓存

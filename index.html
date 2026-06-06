@@ -1102,6 +1102,7 @@
     message:  { emoji:'\uD83D\uDCAC', cls:'type-message' }
   };
   var API = window.location.origin;
+  var APP_VERSION = '20260607'; // 更新时改此版本号，强制刷新用户缓存
 
   var familyCode='', myId='', myName='', myColor=MEMBER_COLORS[0];
   var members={}, notes={};
@@ -2219,7 +2220,11 @@
 
     // 清空旧数据，防止残留
     if(syncTimer)clearInterval(syncTimer);
-    notes={};members={};noteElements={};
+    notes={};members={};noteElements={};lastSyncTime=0;lastServerUpdatedAt=0;
+    // 清空localStorage中的旧便签和同步时间
+    localStorage.removeItem('fridge_notes');
+    localStorage.removeItem('fridge_sync_time');
+    localStorage.removeItem('fridge_read_mentions');
     // 清空冰箱上的旧便签DOM
     var container=document.getElementById('notesContainer');
     if(container)container.innerHTML='';
@@ -2268,10 +2273,10 @@
         saveLocal();updateUI();
         showToast('同步完成！');
       }
+      // 首次同步完成后再启动轮询
+      startSync();startAgeTick();startReminderCheck();
+      setTimeout(function(){showToast('欢迎回家，'+myName+'！');},800);
     });
-
-    startSync();startAgeTick();startReminderCheck();
-    setTimeout(function(){showToast('欢迎回家，'+myName+'！');},800);
   };
   // 解绑旧事件，绑定新事件
   var confirmBtns = document.querySelectorAll('#joinConfirm');
@@ -2291,7 +2296,7 @@
   newLeaveBtn.addEventListener('click',async function(){
     if(!confirm('确定离开这个冰箱吗？'))return;
     if(familyCode&&myId)await apiDelete('/api/member?code='+familyCode+'&id='+myId);
-    familyCode='';myId='';myName='';members={};notes={};noteElements={};lastSyncTime=0;
+    familyCode='';myId='';myName='';members={};notes={};noteElements={};lastSyncTime=0;lastServerUpdatedAt=0;
     var container=document.getElementById('notesContainer');
     if(container)container.innerHTML='';
     document.getElementById('memberPanel').classList.remove('active');
@@ -2299,6 +2304,7 @@
     // 清空localStorage
     localStorage.removeItem('fridge_notes');
     localStorage.removeItem('fridge_sync_time');
+    localStorage.removeItem('fridge_read_mentions');
     saveLocal();updateUI();showToast('已离开');showLanding();
   });
 
@@ -2630,10 +2636,22 @@
 
 })();
 
-// PWA Service Worker + Install
+// PWA Service Worker + Install + 强制版本刷新
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js').catch(function(){});
+  navigator.serviceWorker.register('/sw.js?v=20260607').catch(function(){});
 }
+// 版本检查：如果localStorage里的版本号和当前不同，清缓存刷新
+(function(){
+  var stored=localStorage.getItem('fridge_app_version');
+  if(stored && stored!==APP_VERSION){
+    localStorage.setItem('fridge_app_version',APP_VERSION);
+    // 清掉旧SW缓存
+    if('caches' in window){caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k);});});}
+    location.reload();
+  }else if(!stored){
+    localStorage.setItem('fridge_app_version',APP_VERSION);
+  }
+})();
 
 // 安装按钮逻辑
 (function(){

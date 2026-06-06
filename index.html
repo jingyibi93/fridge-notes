@@ -897,6 +897,7 @@
   <div class="sync-dot" id="syncDot"></div>
   <button class="btn-top-icon" id="btnInvite" title="邀请">🔗</button>
   <button class="btn-top-icon" id="btnInstall" title="添加到桌面">📲</button>
+  <button class="btn-top-icon" id="btnRefresh" title="刷新" style="display:none;">🔄</button>
   <button class="btn-top-icon" id="btnBell" title="通知" style="position:relative;">🔔<span class="bell-badge" id="bellBadge" style="display:none;"></span></button>
 </div>
 <button class="fab" id="btnAdd">+</button>
@@ -2556,10 +2557,14 @@ if('serviceWorker' in navigator){
   var stepsEl=document.getElementById('installGuideSteps');
   var deferredPrompt=null;
 
-  // 已是独立模式则隐藏按钮
+  // 已是独立模式则隐藏安装按钮，显示刷新按钮
   var isStandalone=window.navigator.standalone===true||window.matchMedia('(display-mode: standalone)').matches;
+  var btnRefresh=document.getElementById('btnRefresh');
   if(isStandalone){
     btnInstall.style.display='none';
+    btnRefresh.style.display='inline-flex';
+    btnRefresh.addEventListener('click',function(){location.reload();});
+    btnRefresh.addEventListener('touchend',function(e){e.preventDefault();location.reload();});
     return;
   }
 

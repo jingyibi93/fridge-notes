@@ -1004,17 +1004,19 @@
 
   // ===== 时间痕迹：便签随时间褪色，冰箱在"变旧" =====
   // 用 fadedAt 字段追踪褪色起点（创建/移动时更新），不受同步updatedAt影响
-  // 当天不过期，过了24:00开始指数衰减褪色
+  // 当天不褪色，前一天开始变透明，越早越透明，最低20%
   function calcAgeOpacity(fadedAt){
     var now=Date.now()/1000;
     var ts=fadedAt; if(!ts)return 1;
-    // 计算便签所在日期的下一个00:00（即褪色起始时刻）
-    var d=new Date(ts*1000);
-    var nextMidnight=new Date(d.getFullYear(),d.getMonth(),d.getDate()+1).getTime()/1000;
-    if(now<nextMidnight)return 1.0; // 当天保鲜，不褪色
-    // 过了午夜，按天数衰减 τ=5天
-    var days=(now-nextMidnight)/86400;
-    var opacity=1.0-0.80*(1-Math.exp(-days/5));
+    var noteDate=new Date(ts*1000);
+    var todayDate=new Date();
+    // 算相隔几天（按日期算，不是24小时）
+    var noteDay=new Date(noteDate.getFullYear(),noteDate.getMonth(),noteDate.getDate());
+    var today=new Date(todayDate.getFullYear(),todayDate.getMonth(),todayDate.getDate());
+    var daysDiff=Math.floor((today-noteDay)/86400000);
+    if(daysDiff<=0)return 1.0; // 当天，不褪色
+    // 每多1天减10%，最低20%
+    var opacity=1.0-daysDiff*0.10;
     return Math.max(0.20,opacity);
   }
   function getFadedAt(n){

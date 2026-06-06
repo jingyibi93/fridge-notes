@@ -1020,7 +1020,7 @@
     return Math.max(0.20,opacity);
   }
   function getFadedAt(n){
-    return n.fadedAt||(n.time?n.time/1000:0);
+    return n.time?n.time/1000:0;
   }
   function applyAgeOpacity(id){
     var n=notes[id]; if(!n)return;
@@ -1422,7 +1422,6 @@
         // 图片冰箱贴吸附便签
         if(n.itemType==='photo'){ snapPhotoToNote(id); }
         n.updatedAt=Date.now()/1000;
-        n.fadedAt=Date.now()/1000; // 移动便签=重获新生
         pendingSaves[id]=true;localDirty[id]=true;
         saveLocal(); // 拖拽位置变化也存本地
         saveNoteToServer(id,n).then(function(){delete pendingSaves[id];delete localDirty[id];});
@@ -1693,7 +1692,7 @@
     var n={
       itemType:'photo', imageData:imageData,
       authorId:myId, authorName:myName, authorColor:myColor,
-      time:Date.now(), updatedAt:Date.now()/1000, fadedAt:Date.now()/1000,
+      time:Date.now(), updatedAt:Date.now()/1000,
       x: 3+Math.random()*70, y: 2+Math.random()*75,
       z:++maxZ, rotate:(Math.random()-0.5)*10,
       pinned:true, posUnit:'pct',
@@ -1731,7 +1730,7 @@
       text:text, type:selectedType, itemType:'text',
       authorId:myId, authorName:myName, authorColor:myColor,
       mentions:mentions,
-      time:Date.now(), updatedAt:Date.now()/1000, fadedAt:Date.now()/1000,
+      time:Date.now(), updatedAt:Date.now()/1000,
       x: 3+Math.random()*70, y: 2+Math.random()*75,
       z:++maxZ, rotate:(Math.random()-0.5)*8,
       tapeRotate:(Math.random()-0.5)*10, pinned:true, posUnit:'pct',

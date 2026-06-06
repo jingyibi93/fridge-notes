@@ -2160,34 +2160,38 @@
       noteElements={};
     }
 
-    // 先从服务端拉取该家庭已有成员，避免重复
-    var existingData=await apiGet('/api/sync?code='+code+'&since=0');
-    var existingMembers={};
-    if(existingData.ok&&existingData.family&&existingData.family.members){
-      existingMembers=existingData.family.members;
-      // 如果已有同名成员（包括已离开的），复用其ID，清除_left标记
-      Object.keys(existingMembers).forEach(function(mid){
-        var em=existingMembers[mid];
-        if(em.name===name){
-          myId=mid;myColor=em.color||myColor;
-          em._left=false; // 重新回归
-        }
-      });
-    }
-
     if(!myId)myId=genId();
     familyCode=code;myName=name;members[myId]={name:myName,color:myColor};
-    // 用服务器members整体替换，避免残留
-    if(Object.keys(existingMembers).length>0){
-      members=Object.assign({},existingMembers);
-      members[myId]={name:myName,color:myColor}; // 确保自己是活跃的
-    }
 
+    // 先进入冰箱，不等同步完成
     closeSheet('joinSheet','joinOverlay');
     document.getElementById('memberPanel').classList.remove('active');
     saveLocal();updateUI();hideLanding();
-    await apiPost('/api/member',{code:familyCode,id:myId,member:{name:myName,color:myColor}});
-    startSync();startAgeTick();startReminderCheck();showToast('欢迎回家，'+myName+'！');
+    showToast('正在连接冰箱...');
+
+    // 后台：注册成员
+    apiPost('/api/member',{code:familyCode,id:myId,member:{name:myName,color:myColor}});
+
+    // 后台：拉取已有成员和便签（不阻塞UI）
+    apiGet('/api/sync?code='+code+'&since=0').then(function(existingData){
+      if(existingData.ok&&existingData.family&&existingData.family.members){
+        var existingMembers=existingData.family.members;
+        // 如果已有同名成员（包括已离开的），复用其ID，清除_left标记
+        Object.keys(existingMembers).forEach(function(mid){
+          var em=existingMembers[mid];
+          if(em.name===name){
+            myId=mid;myColor=em.color||myColor;
+            em._left=false;
+          }
+        });
+        members=Object.assign({},existingMembers);
+        members[myId]={name:myName,color:myColor};
+        saveLocal();updateUI();
+      }
+    });
+
+    startSync();startAgeTick();startReminderCheck();
+    setTimeout(function(){showToast('欢迎回家，'+myName+'！');},800);
   };
   // 解绑旧事件，绑定新事件
   var confirmBtns = document.querySelectorAll('#joinConfirm');

@@ -174,6 +174,22 @@
       padding-left: 12px;
       background: linear-gradient(to right, transparent, var(--note-bg, #c8e6c9) 40%);
     }
+    /* 购物清单勾选 */
+    .check-item { display: flex; align-items: flex-start; gap: 4px; }
+    .check-box {
+      width: 16px; height: 16px; min-width: 16px; border-radius: 4px;
+      border: 1.5px solid rgba(0,0,0,0.25); background: rgba(255,255,255,0.5);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; color: transparent; margin-top: 2px;
+      transition: all 0.15s; cursor: pointer;
+    }
+    .check-box.checked { background: #43a047; border-color: #43a047; color: #fff; }
+    .check-text { flex: 1; }
+    .check-text.checked { text-decoration: line-through; color: rgba(0,0,0,0.3); }
+    .note-check-progress {
+      font-size: min(10px, 2.5vw); color: #43a047; margin-top: 2px;
+      display: flex; align-items: center; gap: 2px;
+    }
     .note-comment-count {
       font-size: min(11px, 2.8vw); color: rgba(0,0,0,0.35); margin-top: 2px;
       display: flex; align-items: center; gap: 3px;
@@ -337,6 +353,16 @@
       word-break: break-word;
       white-space: pre-wrap;
       margin-bottom: 12px;
+    }
+    /* 阅读器内的勾选项 */
+    .reader-text .check-item { gap: 8px; padding: 3px 0; }
+    .reader-text .check-box {
+      width: 20px; height: 20px; min-width: 20px; border-radius: 5px;
+      font-size: 12px; margin-top: 3px;
+    }
+    .reader-text .check-text { font-size: 20px; }
+    .reader-check-progress {
+      font-size: 14px; color: #43a047; margin-bottom: 8px; font-family: -apple-system, sans-serif;
     }
     .reader-meta {
       display: flex; justify-content: space-between; align-items: center;
@@ -875,7 +901,7 @@
   <div class="sheet-handle"></div>
   <div class="sheet-title">📝 贴一张便签</div>
   <div class="sheet-body">
-    <textarea id="noteText" placeholder="写点什么..."></textarea>
+    <textarea id="noteText" placeholder="写点什么...&#10;购物清单每行一项，可逐条勾选"></textarea>
     <div class="type-selector">
       <div class="type-option type-shopping-opt selected" data-type="shopping"><span class="type-emoji">🛒</span><span class="type-label">购物清单</span></div>
       <div class="type-option type-reminder-opt" data-type="reminder"><span class="type-emoji">📅</span><span class="type-label">提醒事项</span></div>
@@ -949,6 +975,7 @@
   <div class="reader-bg" id="readerBg"></div>
   <div class="reader-card" id="readerCard">
     <div class="reader-type" id="readerType"></div>
+    <div class="reader-check-progress" id="readerCheckProgress" style="display:none"></div>
     <div class="reader-text" id="readerText"></div>
     <div class="reader-meta">
       <span class="reader-author" id="readerAuthor"></span>
@@ -1043,6 +1070,77 @@
   function genCode(){ var c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',s='';for(var i=0;i<8;i++)s+=c[Math.floor(Math.random()*c.length)];return s; }
   function showToast(msg){ var t=document.getElementById('toast');t.textContent=msg;t.classList.add('active');setTimeout(function(){t.classList.remove('active');},2000); }
   function formatTime(ts){ var d=new Date(ts),mm=d.getMonth()+1,dd=d.getDate(),hh=String(d.getHours()).padStart(2,'0'),mi=String(d.getMinutes()).padStart(2,'0');return mm+'/'+dd+' '+hh+':'+mi; }
+
+  // ===== 购物清单勾选 =====
+  function getCheckItems(text){
+    if(!text)return [];
+    return text.split('\n').filter(function(l){return l.trim()!=='';});
+  }
+  function renderCheckContent(contentEl, n, isReader){
+    var text=n.text||'';
+    if(n.type!=='shopping'||n.itemType==='photo'){
+      contentEl.textContent=text;
+      if(!isReader){
+        if(contentEl.scrollHeight>contentEl.clientHeight+2){contentEl.classList.add('has-more');}
+        else{contentEl.classList.remove('has-more');}
+      }
+      return;
+    }
+    var items=getCheckItems(text);
+    var checkedItems=n.checkedItems||{};
+    contentEl.textContent='';
+    items.forEach(function(line,idx){
+      var div=document.createElement('div');
+      div.className='check-item';
+      var box=document.createElement('span');
+      box.className='check-box'+(checkedItems[idx]?' checked':'');
+      box.textContent='✓';
+      var span=document.createElement('span');
+      span.className='check-text'+(checkedItems[idx]?' checked':'');
+      span.textContent=line;
+      div.appendChild(box);
+      div.appendChild(span);
+      if(isReader){
+        box.addEventListener('click',function(e){e.stopPropagation();toggleCheckItem(n, idx);});
+        box.addEventListener('touchend',function(e){e.preventDefault();e.stopPropagation();toggleCheckItem(n, idx);});
+      }
+      contentEl.appendChild(div);
+    });
+    if(!isReader){
+      if(contentEl.scrollHeight>contentEl.clientHeight+2){contentEl.classList.add('has-more');}
+      else{contentEl.classList.remove('has-more');}
+    }
+  }
+  function toggleCheckItem(n, idx){
+    if(!n.checkedItems)n.checkedItems={};
+    n.checkedItems[idx]=!n.checkedItems[idx];
+    saveLocal();
+    saveNoteToServer(readerCurrentId,n);
+    // 刷新阅读器
+    openNoteReader(readerCurrentId);
+    // 刷新冰箱上的便签
+    var el=noteElements[readerCurrentId];
+    if(el){
+      var contentEl=el.querySelector('.note-content');
+      renderCheckContent(contentEl,n,false);
+      updateCheckProgress(el,n);
+    }
+  }
+  function updateCheckProgress(el,n){
+    var progEl=el.querySelector('.note-check-progress');
+    if(!progEl)return;
+    if(n.type!=='shopping'||n.itemType==='photo'){progEl.style.display='none';return;}
+    var items=getCheckItems(n.text||'');
+    if(items.length<=1){progEl.style.display='none';return;}
+    var checked=n.checkedItems||{};
+    var count=0;items.forEach(function(_,i){if(checked[i])count++;});
+    if(count>0){
+      progEl.textContent='✓'+count+'/'+items.length;
+      progEl.style.display='flex';
+    }else{
+      progEl.style.display='none';
+    }
+  }
 
   // ===== 时间痕迹：便签随时间褪色，冰箱在"变旧" =====
   // 用 fadedAt 字段追踪褪色起点（创建/移动时更新），不受同步updatedAt影响
@@ -1313,12 +1411,7 @@
     el.querySelector('.note-magnet').textContent=MAGNET_STYLES[n.magnetStyle!==undefined?n.magnetStyle:0].emoji;
     el.querySelector('.note-type-badge').textContent=ti.emoji;
     var contentEl=el.querySelector('.note-content');
-    contentEl.textContent=n.text||'';
-    if(contentEl.scrollHeight>contentEl.clientHeight+2){
-      contentEl.classList.add('has-more');
-    }else{
-      contentEl.classList.remove('has-more');
-    }
+    renderCheckContent(contentEl,n,false);
     var comments=n.comments||[];
     var commentCountEl=el.querySelector('.note-comment-count');
     if(commentCountEl){
@@ -1338,6 +1431,8 @@
     if(pb){if(n.preserved){pb.style.display='flex';}else{pb.style.display='none';}}
     // 提醒时间标记
     updateReminderBadge(el,n);
+    // 购物清单勾选进度
+    updateCheckProgress(el,n);
   }
 
   function renderNote(id){
@@ -1379,7 +1474,7 @@
     if(!el){
       el=document.createElement('div');
       el.className='note pinned'; el.dataset.noteId=id;
-      el.innerHTML='<div class="note-magnet"></div><div class="note-type-badge"></div><div class="note-reminder-time" style="display:none"></div><button class="note-delete">&times;</button><div class="preserve-badge" style="display:none">🧊</div><div class="note-content"></div><div class="note-comment-count" style="display:none">💬 <span></span></div><div class="note-meta"><span class="note-author"></span><span class="note-time"></span></div>';
+      el.innerHTML='<div class="note-magnet"></div><div class="note-type-badge"></div><div class="note-reminder-time" style="display:none"></div><button class="note-delete">&times;</button><div class="preserve-badge" style="display:none">🧊</div><div class="note-content"></div><div class="note-check-progress" style="display:none"></div><div class="note-comment-count" style="display:none">💬 <span></span></div><div class="note-meta"><span class="note-author"></span><span class="note-time"></span></div>';
       container.appendChild(el); noteElements[id]=el;
       bindDrag(el,id);
       el.querySelector('.note-delete').addEventListener('click',function(e){e.stopPropagation();deleteNote(id);});
@@ -1404,13 +1499,7 @@
     el.querySelector('.note-magnet').textContent=MAGNET_STYLES[ms2].emoji;
     el.querySelector('.note-type-badge').textContent=ti.emoji;
     var contentEl=el.querySelector('.note-content');
-    contentEl.textContent=n.text||'';
-    // 检查文字是否溢出
-    if(contentEl.scrollHeight>contentEl.clientHeight+2){
-      contentEl.classList.add('has-more');
-    }else{
-      contentEl.classList.remove('has-more');
-    }
+    renderCheckContent(contentEl,n,false);
     // 评论数量
     var comments=n.comments||[];
     var commentCountEl=el.querySelector('.note-comment-count');
@@ -1430,6 +1519,8 @@
     if(pb2){if(n.preserved){pb2.style.display='flex';}else{pb2.style.display='none';}}
     // 提醒时间标记
     updateReminderBadge(el,n);
+    // 购物清单勾选进度
+    updateCheckProgress(el,n);
   }
   var serverDeletedIds={};
   // 清理超过60秒的删除记录
@@ -1625,7 +1716,20 @@
     updateBellBadge();
     var ti=TYPE_INFO[n.type]||TYPE_INFO.message;
     document.getElementById('readerType').textContent=ti.emoji;
-    document.getElementById('readerText').textContent=n.text||'';
+    // 购物清单勾选渲染
+    var readerTextEl=document.getElementById('readerText');
+    renderCheckContent(readerTextEl,n,true);
+    // 购物清单进度
+    var progEl=document.getElementById('readerCheckProgress');
+    if(n.type==='shopping'&&n.itemType!=='photo'){
+      var items=getCheckItems(n.text||'');
+      if(items.length>1){
+        var checked=n.checkedItems||{};
+        var count=0;items.forEach(function(_,i){if(checked[i])count++;});
+        progEl.textContent='✓ 已完成 '+count+'/'+items.length;
+        progEl.style.display='block';
+      }else{progEl.style.display='none';}
+    }else{progEl.style.display='none';}
     document.getElementById('readerAuthor').textContent=n.authorName||'';
     document.getElementById('readerAuthor').style.color=n.authorColor||'#666';
     document.getElementById('readerTime').textContent=formatTime(n.time||Date.now());

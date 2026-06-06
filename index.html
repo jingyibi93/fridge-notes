@@ -1057,9 +1057,9 @@
     var today=new Date(todayDate.getFullYear(),todayDate.getMonth(),todayDate.getDate());
     var daysDiff=Math.floor((today-noteDay)/86400000);
     if(daysDiff<=0)return 1.0; // 当天，不褪色
-    // 每多1天减10%，最低20%
-    var opacity=1.0-daysDiff*0.10;
-    return Math.max(0.20,opacity);
+    // 每多1天减15%，最低5%（近乎无色透明）
+    var opacity=1.0-daysDiff*0.15;
+    return Math.max(0.05,opacity);
   }
   function getFadedAt(n){
     return n.time?n.time/1000:Date.now()/1000;

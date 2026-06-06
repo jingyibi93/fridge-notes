@@ -89,6 +89,44 @@ class FridgeHandler(BaseHTTPRequestHandler):
         self.send_cors()
         self.end_headers()
 
+    def do_HEAD(self):
+        """HEAD请求：只返回头部，不返回正文"""
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path == '/' or path == '':
+            path = '/index.html'
+        if '..' in path:
+            self.send_response(403)
+            self.end_headers()
+            return
+        filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), path.lstrip('/'))
+        if os.path.isfile(filepath):
+            ext = os.path.splitext(filepath)[1].lower()
+            types = {
+                '.html': 'text/html; charset=utf-8',
+                '.js': 'application/javascript; charset=utf-8',
+                '.css': 'text/css; charset=utf-8',
+                '.json': 'application/json; charset=utf-8',
+                '.png': 'image/png',
+                '.jpg': 'image/jpeg',
+                '.ico': 'image/x-icon',
+            }
+            ctype = types.get(ext, 'application/octet-stream')
+            size = os.path.getsize(filepath)
+            self.send_response(200)
+            self.send_cors()
+            self.send_header('Content-Type', ctype)
+            self.send_header('Content-Length', size)
+            self.end_headers()
+        elif path.startswith('/api/'):
+            self.send_response(200)
+            self.send_cors()
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.end_headers()
+        else:
+            self.send_response(404)
+            self.end_headers()
+
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path

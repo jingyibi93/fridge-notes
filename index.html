@@ -877,6 +877,7 @@
   <span class="family-badge" id="familyBadge">未加入</span>
   <div class="sync-dot" id="syncDot"></div>
   <button class="btn-top-icon" id="btnInvite" title="邀请">🔗</button>
+  <button class="btn-top-icon" id="btnInstall" title="添加到桌面" style="display:none;">📲</button>
   <button class="btn-top-icon" id="btnBell" title="通知" style="position:relative;">🔔<span class="bell-badge" id="bellBadge" style="display:none;"></span></button>
 </div>
 <button class="fab" id="btnAdd">+</button>
@@ -2510,10 +2511,69 @@
 
 })();
 
-// PWA Service Worker
+// PWA Service Worker + Install
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('/sw.js').catch(function(){});
 }
+
+// 安装按钮逻辑
+(function(){
+  var btnInstall=document.getElementById('btnInstall');
+  var deferredPrompt=null;
+
+  // Android Chrome: 捕获 beforeinstallprompt
+  window.addEventListener('beforeinstallprompt',function(e){
+    e.preventDefault();
+    deferredPrompt=e;
+    btnInstall.style.display='inline-flex';
+  });
+
+  btnInstall.addEventListener('click',function(){
+    if(deferredPrompt){
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function(){
+        deferredPrompt=null;
+        btnInstall.style.display='none';
+      });
+    }else{
+      showInstallGuide();
+    }
+  });
+  btnInstall.addEventListener('touchend',function(e){
+    e.preventDefault();
+    if(deferredPrompt){
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function(){
+        deferredPrompt=null;
+        btnInstall.style.display='none';
+      });
+    }else{
+      showInstallGuide();
+    }
+  });
+
+  // iOS Safari 或其他不支持自动提示的浏览器：显示引导
+  function showInstallGuide(){
+    var isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent);
+    var isSafari=/Safari/.test(navigator.userAgent)&&!/Chrome/.test(navigator.userAgent);
+    var msg='';
+    if(isIOS){
+      msg='📱 添加到桌面：\n点底部「分享」按钮 → 选「添加到主屏幕」';
+    }else if(isSafari){
+      msg='📱 添加到桌面：\n点地址栏左侧「大小」图标 → 选「添加到桌面」';
+    }else{
+      msg='📱 添加到桌面：\n点浏览器菜单 → 选「添加到主屏幕」或「安装应用」';
+    }
+    showToast(msg);
+  }
+
+  // iOS Safari: 也显示安装按钮（没有beforeinstallprompt事件）
+  var isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent);
+  var isStandalone=window.navigator.standalone===true||window.matchMedia('(display-mode: standalone)').matches;
+  if(isIOS&&!isStandalone){
+    btnInstall.style.display='inline-flex';
+  }
+})();
 </script>
 </body>
 </html>

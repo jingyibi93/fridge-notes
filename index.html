@@ -896,7 +896,7 @@
   <span class="family-badge" id="familyBadge">未加入</span>
   <div class="sync-dot" id="syncDot"></div>
   <button class="btn-top-icon" id="btnInvite" title="邀请">🔗</button>
-  <button class="btn-top-icon" id="btnInstall" title="添加到桌面" style="display:none;">📲</button>
+  <button class="btn-top-icon" id="btnInstall" title="添加到桌面">📲</button>
   <button class="btn-top-icon" id="btnBell" title="通知" style="position:relative;">🔔<span class="bell-badge" id="bellBadge" style="display:none;"></span></button>
 </div>
 <button class="fab" id="btnAdd">+</button>
@@ -1026,7 +1026,8 @@
   <div class="install-guide-card">
     <h3>📲 添加到桌面</h3>
     <div id="installGuideSteps"></div>
-    <button class="install-guide-close" id="installGuideClose">知道了</button>
+    <button class="install-guide-close" id="installGuideClose" style="display:none;">知道了</button>
+    <button id="installGuideInstall" style="display:none;margin-top:12px;padding:12px 32px;border-radius:14px;border:none;background:linear-gradient(135deg,#e94560,#0f3460);color:#fff;font-size:16px;font-weight:600;cursor:pointer;width:100%;">一键安装</button>
   </div>
 </div>
 <input type="file" id="photoInput" accept="image/*">
@@ -2548,56 +2549,64 @@ if('serviceWorker' in navigator){
 // 安装按钮逻辑
 (function(){
   var btnInstall=document.getElementById('btnInstall');
+  var guideClose=document.getElementById('installGuideClose');
+  var guideInstallBtn=document.getElementById('installGuideInstall');
+  var guideEl=document.getElementById('installGuide');
+  var guideBg=document.getElementById('installGuideBg');
+  var stepsEl=document.getElementById('installGuideSteps');
   var deferredPrompt=null;
 
-  // Android Chrome: 捕获 beforeinstallprompt
+  // 已是独立模式则隐藏按钮
+  var isStandalone=window.navigator.standalone===true||window.matchMedia('(display-mode: standalone)').matches;
+  if(isStandalone){
+    btnInstall.style.display='none';
+    return;
+  }
+
+  // 捕获 beforeinstallprompt（Android Chrome / Desktop Chrome）
   window.addEventListener('beforeinstallprompt',function(e){
     e.preventDefault();
     deferredPrompt=e;
-    btnInstall.style.display='inline-flex';
   });
 
-  btnInstall.addEventListener('click',function(){
-    if(deferredPrompt){
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then(function(){
-        deferredPrompt=null;
-        btnInstall.style.display='none';
-      });
-    }else{
-      showInstallGuide();
-    }
-  });
-  btnInstall.addEventListener('touchend',function(e){
-    e.preventDefault();
-    if(deferredPrompt){
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then(function(){
-        deferredPrompt=null;
-        btnInstall.style.display='none';
-      });
-    }else{
-      showInstallGuide();
-    }
+  // 已安装后隐藏按钮
+  window.addEventListener('appinstalled',function(){
+    deferredPrompt=null;
+    btnInstall.style.display='none';
+    guideEl.classList.remove('active');
   });
 
-  // iOS Safari 或其他不支持自动提示的浏览器：显示引导
-  function showInstallGuide(){
+  function showGuide(){
     var isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent);
-    var stepsEl=document.getElementById('installGuideSteps');
+    var isSafari=/Safari/.test(navigator.userAgent)&&!/Chrome|CriOS/.test(navigator.userAgent);
     stepsEl.innerHTML='';
     var steps=[];
     if(isIOS){
+      if(isSafari){
+        steps=[
+          '点底部分享按钮 □↑',
+          '向下滑找到「添加到主屏幕」',
+          '点「添加」即可'
+        ];
+      }else{
+        steps=[
+          '请先用 Safari 打开此页面',
+          '点底部分享按钮 □↑',
+          '向下滑找到「添加到主屏幕」',
+          '点「添加」即可'
+        ];
+      }
+    }else if(/Android/.test(navigator.userAgent)){
       steps=[
-        '点底部「分享」按钮 (方块+箭头图标)',
-        '向下滑，找到「添加到主屏幕」',
-        '点「添加」，桌面就出现冰箱便签了'
+        '点浏览器右上角 ⋮ 菜单',
+        '找到「添加到主屏幕」或「安装应用」',
+        '点确认即可'
       ];
     }else{
       steps=[
-        '点浏览器右上角「⋮」菜单',
-        '找到「添加到主屏幕」或「安装应用」',
-        '点确认，桌面就出现冰箱便签了'
+        '点浏览器地址栏右侧安装图标',
+        '或点菜单「更多工具 → 创建快捷方式」',
+        '确认后桌面即可打开'
       ];
     }
     steps.forEach(function(text,i){
@@ -2606,20 +2615,56 @@ if('serviceWorker' in navigator){
       div.innerHTML='<span class="step-num">'+(i+1)+'</span><span class="step-text">'+text+'</span>';
       stepsEl.appendChild(div);
     });
-    document.getElementById('installGuide').classList.add('active');
+    // 如果有 deferredPrompt，显示一键安装按钮
+    if(deferredPrompt){
+      guideInstallBtn.style.display='block';
+      guideClose.style.display='none';
+    }else{
+      guideInstallBtn.style.display='none';
+      guideClose.style.display='inline-block';
+    }
+    guideEl.classList.add('active');
   }
 
-  // 关闭弹窗
-  document.getElementById('installGuideClose').addEventListener('click',function(){document.getElementById('installGuide').classList.remove('active');});
-  document.getElementById('installGuideClose').addEventListener('touchend',function(e){e.preventDefault();document.getElementById('installGuide').classList.remove('active');});
-  document.getElementById('installGuideBg').addEventListener('click',function(){document.getElementById('installGuide').classList.remove('active');});
-
-  // iOS Safari: 也显示安装按钮（没有beforeinstallprompt事件）
-  var isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent);
-  var isStandalone=window.navigator.standalone===true||window.matchMedia('(display-mode: standalone)').matches;
-  if(isIOS&&!isStandalone){
-    btnInstall.style.display='inline-flex';
+  function doInstall(){
+    if(deferredPrompt){
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function(){
+        deferredPrompt=null;
+        guideInstallBtn.style.display='none';
+        guideClose.style.display='inline-block';
+      });
+    }
   }
+
+  btnInstall.addEventListener('click',function(){
+    if(deferredPrompt){
+      // 直接弹出系统安装对话框
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function(){
+        deferredPrompt=null;
+      });
+    }else{
+      showGuide();
+    }
+  });
+  btnInstall.addEventListener('touchend',function(e){
+    e.preventDefault();
+    if(deferredPrompt){
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function(){
+        deferredPrompt=null;
+      });
+    }else{
+      showGuide();
+    }
+  });
+
+  guideInstallBtn.addEventListener('click',doInstall);
+  guideInstallBtn.addEventListener('touchend',function(e){e.preventDefault();doInstall();});
+  guideClose.addEventListener('click',function(){guideEl.classList.remove('active');});
+  guideClose.addEventListener('touchend',function(e){e.preventDefault();guideEl.classList.remove('active');});
+  guideBg.addEventListener('click',function(){guideEl.classList.remove('active');});
 })();
 </script>
 </body>

@@ -335,6 +335,11 @@ class FridgeHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-Type', ctype)
         self.send_header('Content-Length', len(content))
+        # HTML/JS/CSS/JSON 不缓存，确保用户总是拿到最新版本
+        if ext in ('.html', '.js', '.css', '.json'):
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
         self.end_headers()
         self.wfile.write(content)
 

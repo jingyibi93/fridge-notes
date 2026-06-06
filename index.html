@@ -2215,12 +2215,11 @@
     if(!code)code=genCode();
 
     // 清空旧数据，防止残留
-    if(familyCode&&familyCode!==code){
-      if(syncTimer)clearInterval(syncTimer);
-      notes={};members={};
-      Object.keys(noteElements).forEach(function(id){var el=noteElements[id];if(el.parentNode)el.parentNode.removeChild(el);});
-      noteElements={};
-    }
+    if(syncTimer)clearInterval(syncTimer);
+    notes={};members={};noteElements={};
+    // 清空冰箱上的旧便签DOM
+    var container=document.getElementById('notesContainer');
+    if(container)container.innerHTML='';
 
     if(!myId)myId=genId();
     familyCode=code;myName=name;members[myId]={name:myName,color:myColor};
@@ -2273,11 +2272,15 @@
   newLeaveBtn.addEventListener('click',async function(){
     if(!confirm('确定离开这个冰箱吗？'))return;
     if(familyCode&&myId)await apiDelete('/api/member?code='+familyCode+'&id='+myId);
-    familyCode='';myId='';myName='';members={};notes={};
-    Object.keys(noteElements).forEach(function(id){var el=noteElements[id];if(el.parentNode)el.parentNode.removeChild(el);});
-    noteElements={};document.getElementById('memberPanel').classList.remove('active');
-
-    if(syncTimer)clearInterval(syncTimer);saveLocal();updateUI();showToast('已离开');showLanding();
+    familyCode='';myId='';myName='';members={};notes={};noteElements={};lastSyncTime=0;
+    var container=document.getElementById('notesContainer');
+    if(container)container.innerHTML='';
+    document.getElementById('memberPanel').classList.remove('active');
+    if(syncTimer)clearInterval(syncTimer);
+    // 清空localStorage
+    localStorage.removeItem('fridge_notes');
+    localStorage.removeItem('fridge_sync_time');
+    saveLocal();updateUI();showToast('已离开');showLanding();
   });
 
   // ===== @提及下拉菜单 =====

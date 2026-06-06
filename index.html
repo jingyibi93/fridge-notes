@@ -882,8 +882,13 @@
       <div class="type-option type-message-opt" data-type="message"><span class="type-emoji">💬</span><span class="type-label">日常留言</span></div>
     </div>
     <div id="reminderTimeRow" style="display:none;margin-top:8px;">
-      <label style="font-size:12px;color:rgba(255,255,255,0.6);margin-bottom:4px;display:block;">提醒时间</label>
-      <input type="datetime-local" id="reminderTimeInput" style="width:100%;padding:8px 10px;border-radius:10px;border:none;background:rgba(255,255,255,0.12);color:#fff;font-size:14px;">
+      <label style="font-size:12px;color:rgba(255,255,255,0.6);margin-bottom:4px;display:block;">⏰ 提醒时间</label>
+      <div style="position:relative;width:100%;">
+        <input type="datetime-local" id="reminderTimeInput" style="width:100%;padding:10px 12px;border-radius:12px;border:2px dashed rgba(255,255,255,0.25);background:rgba(255,140,0,0.15);color:#fff;font-size:15px;min-height:44px;-webkit-appearance:none;outline:none;cursor:pointer;" placeholder="点击选择时间">
+        <div id="reminderTimePlaceholder" style="position:absolute;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;pointer-events:none;border-radius:12px;color:rgba(255,255,255,0.55);font-size:14px;gap:6px;">
+          <span style="font-size:18px;">📅</span> 点击选择提醒时间
+        </div>
+      </div>
     </div>
   </div>
   <div class="sheet-actions">
@@ -1843,6 +1848,7 @@
     document.querySelector('.type-shopping-opt').classList.add('selected');
     document.getElementById('reminderTimeInput').value='';
     document.getElementById('reminderTimeRow').style.display='none';
+    var ph=document.getElementById('reminderTimePlaceholder');if(ph)ph.style.display='flex';
   }
 
   async function addNewNote(){
@@ -1891,6 +1897,15 @@
   document.querySelectorAll('.type-option').forEach(function(opt){
     opt.addEventListener('click',function(){document.querySelectorAll('.type-option').forEach(function(o){o.classList.remove('selected');});opt.classList.add('selected');selectedType=opt.dataset.type;document.getElementById('reminderTimeRow').style.display=selectedType==='reminder'?'block':'none';});
     opt.addEventListener('touchend',function(e){e.preventDefault();document.querySelectorAll('.type-option').forEach(function(o){o.classList.remove('selected');});opt.classList.add('selected');selectedType=opt.dataset.type;document.getElementById('reminderTimeRow').style.display=selectedType==='reminder'?'block':'none';});
+  });
+  // 时间选择器占位提示：选了时间后隐藏
+  document.getElementById('reminderTimeInput').addEventListener('input',function(){
+    var ph=document.getElementById('reminderTimePlaceholder');
+    if(ph)ph.style.display=this.value?'none':'flex';
+  });
+  document.getElementById('reminderTimeInput').addEventListener('change',function(){
+    var ph=document.getElementById('reminderTimePlaceholder');
+    if(ph)ph.style.display=this.value?'none':'flex';
   });
 
   // ===== 加入家庭 =====

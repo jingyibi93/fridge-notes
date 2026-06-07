@@ -136,6 +136,14 @@ class FridgeHandler(BaseHTTPRequestHandler):
             self.send_json({"ok": True})
             return
 
+        # 强制缓存刷新：根路径不带v参数时302重定向
+        if (path == '/' or path == '') and 'v' not in params:
+            self.send_response(302)
+            self.send_header('Location', '/?v=7')
+            self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self.end_headers()
+            return
+
         # 轻量版本检查：只返回updatedAt，极快
         if path == '/api/version':
             code = params.get('code', [''])[0].upper()

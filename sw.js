@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fridge-v8';
+const CACHE_NAME = 'fridge-v9';
 
 // 安装：不阻塞，缓存尽力而为
 self.addEventListener('install', function(event) {

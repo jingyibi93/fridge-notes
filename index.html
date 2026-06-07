@@ -1123,7 +1123,7 @@
     message:  { emoji:'\uD83D\uDCAC', cls:'type-message' }
   };
   var API = window.location.origin;
-  var APP_VERSION = '20260607i'; // 更新时改此版本号，强制刷新用户缓存
+  var APP_VERSION = '20260607j'; // 更新时改此版本号，强制刷新用户缓存
 
   var familyCode='', myId='', myName='', myColor=MEMBER_COLORS[0];
   var members={}, notes={};
@@ -2745,8 +2745,11 @@ if('serviceWorker' in navigator){
 
   // 刷新按钮：始终可用
   var btnRefresh=document.getElementById('btnRefresh');
-  btnRefresh.addEventListener('click',function(){location.replace(location.origin+location.pathname+'?fv='+Date.now());});
-  btnRefresh.addEventListener('touchend',function(e){e.preventDefault();location.replace(location.origin+location.pathname+'?fv='+Date.now());});
+  function doRefresh(){
+    var u=location.origin+location.pathname+'?fv='+Date.now();
+    try{window.location.href=u;}catch(e){location.replace(u);}
+  }
+  btnRefresh.onclick=doRefresh;
 
   // 已是独立模式则隐藏安装按钮
   var isStandalone=window.navigator.standalone===true||window.matchMedia('(display-mode: standalone)').matches;

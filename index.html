@@ -1,6 +1,21 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+  <script>
+  // 强制缓存破坏：版本检查在最前面执行，不依赖任何外部代码
+  (function(){
+    var V='20260607b';
+    var s=localStorage.getItem('_fv');
+    if(s!==V){
+      localStorage.setItem('_fv',V);
+      if('caches' in window){caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k);});});}
+      if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});});}
+      if(!location.search||location.search.indexOf('fv=')===-1){
+        location.replace(location.origin+location.pathname+'?fv='+V);
+      }
+    }
+  })();
+  </script>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">

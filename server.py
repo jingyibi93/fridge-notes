@@ -231,6 +231,17 @@ class FridgeHandler(BaseHTTPRequestHandler):
         data = load_data()
         if code not in data['families']:
             data['families'][code] = {"members": {}, "notes": {}, "updatedAt": time.time()}
+        # 服务器端防护：拒绝不属于该家庭成员的便签，防止跨家庭污染
+        author_name = note.get('authorName', '')
+        if author_name:
+            family_members = data['families'][code].get('members', {})
+            is_member = any(m.get('name') == author_name for m in family_members.values())
+            if not is_member:
+                return -1  # 拒绝保存
+        # 也检查_fc字段：如果便签标记了其他家庭，拒绝
+        note_fc = note.get('_fc', '')
+        if note_fc and note_fc != code:
+            return -1  # 拒绝保存
         server_now = time.time()
         note['updatedAt'] = server_now
         data['families'][code]['notes'][note_id] = note
@@ -332,7 +343,10 @@ class FridgeHandler(BaseHTTPRequestHandler):
                 return
 
             updated_at = self._save_note(code, note_id, note)
-            self.send_json({"ok": True, "updatedAt": updated_at})
+            if updated_at == -1:
+                self.send_json({"ok": False, "error": "note author not in family"}, 403)
+            else:
+                self.send_json({"ok": True, "updatedAt": updated_at})
             return
 
         if path == '/api/member':

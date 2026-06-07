@@ -156,9 +156,9 @@ class FridgeHandler(BaseHTTPRequestHandler):
             self.send_json({"ok": True, "families": result})
             return
 
-        # 强制缓存刷新：根路径返回跳转页，避免Safari死缓存
+        # 强制缓存刷新：根路径返回跳转页，清除SW缓存后跳转
         if (path == '/' or path == '') and 'fv' not in params:
-            redirect_html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate"><script>location.replace("/?fv="+Date.now());</script></head><body></body></html>'
+            redirect_html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate"><style>body{display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;background:#1a1a2e;color:#fff;margin:0}</style></head><body><p>🔄 正在更新...</p></body><script>if("serviceWorker" in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){Promise.all(rs.map(function(r){return r.unregister();})).then(function(){if("caches" in window){caches.keys().then(function(ks){Promise.all(ks.map(function(k){return caches.delete(k);})).then(function(){location.replace("/?fv="+Date.now());});});}else{location.replace("/?fv="+Date.now());}});});}else{location.replace("/?fv="+Date.now());}</script></html>'
             body = redirect_html.encode('utf-8')
             self.send_response(200)
             self.send_header('Content-Type', 'text/html; charset=utf-8')

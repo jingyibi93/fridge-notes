@@ -4,7 +4,7 @@
   <script>
   // 强制缓存破坏：版本检查在最前面执行，不依赖任何外部代码
   (function(){
-    var V='20260607b';
+    var V='20260607c';
     var s=localStorage.getItem('_fv');
     if(s!==V){
       localStorage.setItem('_fv',V);
@@ -484,13 +484,14 @@
     }
     .fab:active { transform: scale(0.92); box-shadow: 0 2px 8px rgba(231,76,60,0.3); }
     .top-pill {
-      position: fixed; bottom: calc(20px + env(safe-area-inset-bottom)); left: 20px;
+      position: fixed; bottom: calc(20px + env(safe-area-inset-bottom)); left: 12px; right: 90px;
       background: rgba(40,40,55,0.85);
       backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-      padding: 6px 16px; border-radius: 20px;
-      display: flex; align-items: center; gap: 8px; z-index: 200;
+      padding: 6px 12px; border-radius: 20px;
+      display: flex; align-items: center; gap: 6px; z-index: 200;
       box-shadow: 0 2px 12px rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.08);
       opacity: 0; animation: uiFadeIn 0.5s ease 0.9s forwards;
+      overflow: hidden;
     }
     @keyframes uiFadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
     .member-avatar {
@@ -942,9 +943,9 @@
   <span class="family-badge" id="familyBadge">未加入</span>
   <div class="sync-dot" id="syncDot"></div>
   <button class="btn-top-icon" id="btnInvite" title="邀请">🔗</button>
-  <button class="btn-top-icon" id="btnInstall" title="添加到桌面">📲</button>
-  <button class="btn-top-icon" id="btnRefresh" title="刷新">🔄</button>
   <button class="btn-top-icon" id="btnBell" title="通知" style="position:relative;">🔔<span class="bell-badge" id="bellBadge" style="display:none;"></span></button>
+  <button class="btn-top-icon" id="btnInstall" title="添加到桌面" style="display:none;">📲</button>
+  <button class="btn-top-icon" id="btnRefresh" title="刷新">🔄</button>
 </div>
 <button class="fab" id="btnAdd">+</button>
 
@@ -1117,7 +1118,7 @@
     message:  { emoji:'\uD83D\uDCAC', cls:'type-message' }
   };
   var API = window.location.origin;
-  var APP_VERSION = '20260607'; // 更新时改此版本号，强制刷新用户缓存
+  var APP_VERSION = '20260607c'; // 更新时改此版本号，强制刷新用户缓存
 
   var familyCode='', myId='', myName='', myColor=MEMBER_COLORS[0];
   var members={}, notes={};
@@ -1379,6 +1380,19 @@
           }
           if(result.family.notes){
             var serverNoteIds=Object.keys(result.family.notes);
+            // 全量同步时(since=0)：用服务器数据完全替换本地，防止旧家庭便签残留
+            var isFullSync = (useSince === 0);
+            if(isFullSync){
+              // 先移除本地有但服务器没有的便签
+              var localIds = Object.keys(notes);
+              localIds.forEach(function(nid){
+                if(!(nid in result.family.notes)){
+                  // 服务器没有此便签，从本地删除
+                  delete notes[nid];
+                  removeNoteEl(nid);
+                }
+              });
+            }
             // 合并服务器便签到本地
             serverNoteIds.forEach(function(nid){
               if(nid in pendingSaves)return; // 跳过当前正在保存的
@@ -1394,14 +1408,16 @@
                 else{renderNote(nid);}
               }
             });
-            // 本地有但服务器没有的便签：只有非删除状态且不在serverDeletedIds中才补传
-            Object.keys(notes).forEach(function(nid){
-              if(notes[nid]._deleted)return;
-              if(nid in serverDeletedIds)return; // 服务器已删除，不补传
-              if(!(nid in result.family.notes)&&!(nid in pendingSaves)){
-                apiPost('/api/note',{code:familyCode,id:nid,note:notes[nid]});
-              }
-            });
+            // 增量同步时：本地有但服务器没有的便签才补传
+            if(!isFullSync){
+              Object.keys(notes).forEach(function(nid){
+                if(notes[nid]._deleted)return;
+                if(nid in serverDeletedIds)return; // 服务器已删除，不补传
+                if(!(nid in result.family.notes)&&!(nid in pendingSaves)){
+                  apiPost('/api/note',{code:familyCode,id:nid,note:notes[nid]});
+                }
+              });
+            }
             cleanDeletedIds();
           }
           // lastSyncTime留2秒安全余量，防止保存和同步的时间窗口竞态漏数据
@@ -2240,6 +2256,8 @@
     localStorage.removeItem('fridge_notes');
     localStorage.removeItem('fridge_sync_time');
     localStorage.removeItem('fridge_read_mentions');
+    // 清空离线队列，防止旧家庭的操作发到新家庭
+    offlineQueue=[];saveOfflineQueue();
     // 清空冰箱上的旧便签DOM
     var container=document.getElementById('notesContainer');
     if(container)container.innerHTML='';
@@ -2320,6 +2338,8 @@
     localStorage.removeItem('fridge_notes');
     localStorage.removeItem('fridge_sync_time');
     localStorage.removeItem('fridge_read_mentions');
+    // 清空离线队列
+    offlineQueue=[];saveOfflineQueue();
     saveLocal();updateUI();showToast('已离开');showLanding();
   });
 
@@ -2653,7 +2673,7 @@
 
 // PWA Service Worker + Install + 强制版本刷新
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js?v=20260607').catch(function(){});
+  navigator.serviceWorker.register('/sw.js?v=20260607c').catch(function(){});
 }
 // 版本检查：如果localStorage里的版本号和当前不同，清缓存刷新
 (function(){

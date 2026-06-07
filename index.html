@@ -4,7 +4,7 @@
   <script>
   // 强制缓存破坏：版本检查在最前面执行，不依赖任何外部代码
   (function(){
-    var V='20260607d';
+    var V='20260607e';
     var s=localStorage.getItem('_fv');
     if(s!==V){
       localStorage.setItem('_fv',V);
@@ -1118,7 +1118,7 @@
     message:  { emoji:'\uD83D\uDCAC', cls:'type-message' }
   };
   var API = window.location.origin;
-  var APP_VERSION = '20260607d'; // 更新时改此版本号，强制刷新用户缓存
+  var APP_VERSION = '20260607e'; // 更新时改此版本号，强制刷新用户缓存
 
   var familyCode='', myId='', myName='', myColor=MEMBER_COLORS[0];
   var members={}, notes={};
@@ -1400,6 +1400,7 @@
               if(n._deleted){delete notes[nid];removeNoteEl(nid);serverDeletedIds[nid]=Date.now();}
               else{
                 normalizeNotePos(n);
+                n._fc=familyCode; // 标记归属当前家庭
                 var localNote=notes[nid];
                 // 直接接受服务器数据，不再用updatedAt比较（客户端/服务器时钟偏移会导致误判）
                 // isDragging保护：updateNoteContent中拖动时跳过位置更新
@@ -1408,11 +1409,13 @@
                 else{renderNote(nid);}
               }
             });
-            // 增量同步时：本地有但服务器没有的便签才补传
+            // 增量同步时：只补传属于当前家庭的本地便签（_fc===familyCode）
             if(!isFullSync){
               Object.keys(notes).forEach(function(nid){
                 if(notes[nid]._deleted)return;
                 if(nid in serverDeletedIds)return; // 服务器已删除，不补传
+                // 关键：只补传属于当前家庭的便签，防止旧家庭便签污染新家庭
+                if(notes[nid]._fc && notes[nid]._fc!==familyCode)return;
                 if(!(nid in result.family.notes)&&!(nid in pendingSaves)){
                   apiPost('/api/note',{code:familyCode,id:nid,note:notes[nid]});
                 }
@@ -1662,6 +1665,8 @@
   }
   async function saveNoteToServer(id,n){
     if(!familyCode)return;
+    // 防止旧家庭便签被上传到新家庭
+    if(n._fc && n._fc!==familyCode)return;
     saveLocal(); // 无论在线离线，先存本地
     var result=await apiPost('/api/note',{code:familyCode,id:id,note:n});
     if(!result||!result.ok){
@@ -2046,6 +2051,7 @@
     var n={
       itemType:'photo', imageData:imageData,
       authorId:myId, authorName:myName, authorColor:myColor,
+      _fc:familyCode,
       time:Date.now(), updatedAt:Date.now()/1000,
       x: 3+Math.random()*70, y: 2+Math.random()*75,
       z:++maxZ, rotate:(Math.random()-0.5)*10,
@@ -2104,7 +2110,7 @@
     var n={
       text:text, type:selectedType, itemType:'text',
       authorId:myId, authorName:myName, authorColor:myColor,
-      mentions:mentions,
+      mentions:mentions, _fc:familyCode,
       time:Date.now(), updatedAt:Date.now()/1000,
       reminderTime:reminderTime,
       x: 3+Math.random()*70, y: 2+Math.random()*75,
@@ -2304,7 +2310,7 @@
         Object.keys(existingNotes).forEach(function(nid){
           var n=existingNotes[nid];
           if(n._deleted){delete notes[nid];removeNoteEl(nid);}
-          else{normalizeNotePos(n);notes[nid]=n;renderNote(nid);}
+          else{normalizeNotePos(n);n._fc=code;notes[nid]=n;renderNote(nid);}
         });
 
         // 更新同步时间戳
@@ -2688,7 +2694,7 @@
 
 // PWA Service Worker + Install + 强制版本刷新
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js?v=20260607d').catch(function(){});
+  navigator.serviceWorker.register('/sw.js?v=20260607e').catch(function(){});
 }
 // 版本检查：如果localStorage里的版本号和当前不同，清缓存刷新
 (function(){

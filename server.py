@@ -136,6 +136,26 @@ class FridgeHandler(BaseHTTPRequestHandler):
             self.send_json({"ok": True})
             return
 
+        # Debug: 列出所有家庭（临时，排查用）
+        if path == '/api/debug_families':
+            data = load_data()
+            families = data.get('families', {})
+            result = {}
+            for code, fam in families.items():
+                members = fam.get('members', {})
+                notes = fam.get('notes', {})
+                active_members = {mid: m for mid, m in members.items() if not m.get('_left', False)}
+                result[code] = {
+                    "member_count": len(members),
+                    "active_member_count": len(active_members),
+                    "active_members": {mid: m.get('name', '?') for mid, m in active_members.items()},
+                    "note_count": len(notes),
+                    "note_ids": list(notes.keys())[:10],
+                    "updatedAt": fam.get('updatedAt', 0)
+                }
+            self.send_json({"ok": True, "families": result})
+            return
+
         # 强制缓存刷新：根路径返回跳转页，避免Safari死缓存
         if (path == '/' or path == '') and 'fv' not in params:
             redirect_html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate"><script>location.replace("/?fv="+Date.now());</script></head><body></body></html>'

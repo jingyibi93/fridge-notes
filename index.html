@@ -5,7 +5,10 @@
   // 强制缓存破坏：版本检查在最前面执行，不依赖任何外部代码
   (function(){
     var V='20260607l';
+    // 硬编码刷新阈值：fv参数比此值旧就强制跳根路径清SW缓存
+    var FV_MIN=1749268800000; // 2026-06-07 14:00 CST
     var s=localStorage.getItem('_fv');
+    var needPurge=false;
     if(s!==V){
       localStorage.setItem('_fv',V);
       // 版本升级时强制清空便签数据，防止旧家庭便签残留
@@ -15,9 +18,18 @@
       localStorage.removeItem('fridge_read_mentions');
       if('caches' in window){caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k);});});}
       if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});});}
+      needPurge=true;
+    }
+    // 即使localStorage版本对了，URL的fv太旧也强制回根路径清SW
+    var fvMatch=location.search.match(/fv=(\d+)/);
+    if(needPurge||(fvMatch&&parseInt(fvMatch[1])<FV_MIN)){
       if(!location.search||location.search.indexOf('fv=')===-1){
-        location.replace(location.origin+location.pathname+'?fv='+V);
+        location.replace(location.origin+'/'); // 跳根路径触发SW清理
+      }else if(needPurge){
+        location.replace(location.origin+'/'); // 版本变更，回根路径
       }
+    }else if(!location.search||location.search.indexOf('fv=')===-1){
+      location.replace(location.origin+location.pathname+'?fv='+V);
     }
   })();
   </script>
@@ -1123,7 +1135,7 @@
     message:  { emoji:'\uD83D\uDCAC', cls:'type-message' }
   };
   var API = window.location.origin;
-  var APP_VERSION = '20260607k'; // 更新时改此版本号，强制刷新用户缓存
+  var APP_VERSION = '20260607l'; // 更新时改此版本号，强制刷新用户缓存
 
   var familyCode='', myId='', myName='', myColor=MEMBER_COLORS[0];
   var members={}, notes={};
@@ -2718,7 +2730,7 @@
 
 // PWA Service Worker + Install + 强制版本刷新
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js?v=20260607l').catch(function(){});
+  navigator.serviceWorker.register('/sw.js?v=20260607m').catch(function(){});
 }
 // 版本检查：如果localStorage里的版本号和当前不同，清缓存刷新
 (function(){

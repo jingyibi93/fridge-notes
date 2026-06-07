@@ -4,7 +4,7 @@
   <script>
   // 强制缓存破坏：版本检查在最前面执行，不依赖任何外部代码
   (function(){
-    var V='20260607e';
+    var V='20260607f';
     var s=localStorage.getItem('_fv');
     if(s!==V){
       localStorage.setItem('_fv',V);
@@ -1118,7 +1118,7 @@
     message:  { emoji:'\uD83D\uDCAC', cls:'type-message' }
   };
   var API = window.location.origin;
-  var APP_VERSION = '20260607e'; // 更新时改此版本号，强制刷新用户缓存
+  var APP_VERSION = '20260607f'; // 更新时改此版本号，强制刷新用户缓存
 
   var familyCode='', myId='', myName='', myColor=MEMBER_COLORS[0];
   var members={}, notes={};
@@ -1670,6 +1670,10 @@
     saveLocal(); // 无论在线离线，先存本地
     var result=await apiPost('/api/note',{code:familyCode,id:id,note:n});
     if(!result||!result.ok){
+      // 服务器拒绝：跨家庭便签，从本地也删掉
+      if(result&&result.error==='note author not in family'){
+        delete notes[id];removeNoteEl(id);saveLocal();return;
+      }
       // 离线：加入队列，等上线补发
       queueOp('POST','/api/note',{code:familyCode,id:id,note:n});
     } else if(result.updatedAt){
@@ -2694,7 +2698,7 @@
 
 // PWA Service Worker + Install + 强制版本刷新
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js?v=20260607e').catch(function(){});
+  navigator.serviceWorker.register('/sw.js?v=20260607f').catch(function(){});
 }
 // 版本检查：如果localStorage里的版本号和当前不同，清缓存刷新
 (function(){

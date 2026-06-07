@@ -293,7 +293,7 @@ class FridgeHandler(BaseHTTPRequestHandler):
 
     @with_lock
     def _cleanup_members(self, code):
-        """清理重复成员：同名活跃成员只保留一个（最新的），其余标记_left"""
+        """清理重复成员：同名只保留1个活跃+1个_left，多余的真删"""
         data = load_data()
         family = data.get('families', {}).get(code, None)
         if not family:
@@ -308,17 +308,24 @@ class FridgeHandler(BaseHTTPRequestHandler):
             if name not in name_groups:
                 name_groups[name] = []
             name_groups[name].append((mid, m))
-        # 对每组同名成员，只保留一个活跃的
-        changed = False
+        # 对每组同名成员：活跃只保留1个，_left只保留1个，其余真删
+        to_delete = []
         for name, group in name_groups.items():
             active = [(mid, m) for mid, m in group if not m.get('_left', False)]
-            if len(active) <= 1:
-                continue
-            # 保留最后一个活跃的，其余标_left
-            for mid, m in active[:-1]:
-                members[mid]['_left'] = True
-                changed = True
-        if changed:
+            left = [(mid, m) for mid, m in group if m.get('_left', False)]
+            # 活跃超过1个：保留最后一个，其余标_left
+            if len(active) > 1:
+                for mid, m in active[:-1]:
+                    members[mid]['_left'] = True
+                    left.append((mid, members[mid]))
+            # _left超过1个：只保留1个，其余真删
+            if len(left) > 1:
+                for mid, m in left[1:]:
+                    to_delete.append(mid)
+        # 真删多余的_left成员
+        for mid in to_delete:
+            del members[mid]
+        if to_delete:
             family['updatedAt'] = time.time()
             save_data(data)
 

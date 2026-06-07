@@ -150,6 +150,13 @@ class FridgeHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
+        # 清理重复成员
+        if path == '/api/cleanup':
+            code = params.get('code', [''])[0].upper()
+            self._cleanup_members(code)
+            self.send_json({"ok": True})
+            return
+
         # 轻量版本检查：只返回updatedAt，极快
         if path == '/api/version':
             code = params.get('code', [''])[0].upper()
@@ -216,6 +223,12 @@ class FridgeHandler(BaseHTTPRequestHandler):
         data = load_data()
         if code not in data['families']:
             data['families'][code] = {"members": {}, "notes": {}, "updatedAt": time.time()}
+        # 成员去重：同名活跃成员只保留最新的，旧的全部标记_left
+        member_name = member.get('name', '')
+        if member_name and not member.get('_left', False):
+            for mid, m in data['families'][code].get('members', {}).items():
+                if mid != member_id and m.get('name') == member_name and not m.get('_left', False):
+                    m['_left'] = True
         data['families'][code]['members'][member_id] = member
         data['families'][code]['updatedAt'] = time.time()
         save_data(data)
@@ -243,6 +256,37 @@ class FridgeHandler(BaseHTTPRequestHandler):
         family = data.get('families', {}).get(code, None)
         if family and member_id in family.get('members', {}):
             family['members'][member_id]['_left'] = True
+            family['updatedAt'] = time.time()
+            save_data(data)
+
+    @with_lock
+    def _cleanup_members(self, code):
+        """清理重复成员：同名活跃成员只保留一个（最新的），其余标记_left"""
+        data = load_data()
+        family = data.get('families', {}).get(code, None)
+        if not family:
+            return
+        members = family.get('members', {})
+        # 按名字分组
+        name_groups = {}
+        for mid, m in members.items():
+            name = m.get('name', '')
+            if not name:
+                continue
+            if name not in name_groups:
+                name_groups[name] = []
+            name_groups[name].append((mid, m))
+        # 对每组同名成员，只保留一个活跃的
+        changed = False
+        for name, group in name_groups.items():
+            active = [(mid, m) for mid, m in group if not m.get('_left', False)]
+            if len(active) <= 1:
+                continue
+            # 保留最后一个活跃的，其余标_left
+            for mid, m in active[:-1]:
+                members[mid]['_left'] = True
+                changed = True
+        if changed:
             family['updatedAt'] = time.time()
             save_data(data)
 

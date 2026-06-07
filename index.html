@@ -1123,7 +1123,7 @@
     message:  { emoji:'\uD83D\uDCAC', cls:'type-message' }
   };
   var API = window.location.origin;
-  var APP_VERSION = '20260607j'; // 更新时改此版本号，强制刷新用户缓存
+  var APP_VERSION = '20260607k'; // 更新时改此版本号，强制刷新用户缓存
 
   var familyCode='', myId='', myName='', myColor=MEMBER_COLORS[0];
   var members={}, notes={};
@@ -2718,7 +2718,7 @@
 
 // PWA Service Worker + Install + 强制版本刷新
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js?v=20260607i').catch(function(){});
+  navigator.serviceWorker.register('/sw.js?v=20260607k').catch(function(){});
 }
 // 版本检查：如果localStorage里的版本号和当前不同，清缓存刷新
 (function(){
@@ -2743,11 +2743,16 @@ if('serviceWorker' in navigator){
   var stepsEl=document.getElementById('installGuideSteps');
   var deferredPrompt=null;
 
-  // 刷新按钮：始终可用
+  // 刷新按钮：始终可用（Safari PWA需用<a>标签点击才能可靠导航）
   var btnRefresh=document.getElementById('btnRefresh');
   function doRefresh(){
-    var u=location.origin+location.pathname+'?fv='+Date.now();
-    try{window.location.href=u;}catch(e){location.replace(u);}
+    btnRefresh.style.transform='rotate(360deg)';
+    btnRefresh.style.transition='transform 0.3s';
+    var a=document.createElement('a');
+    a.href=location.origin+location.pathname+'?fv='+Date.now();
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
   btnRefresh.onclick=doRefresh;
 

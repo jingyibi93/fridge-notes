@@ -308,7 +308,7 @@ class FridgeHandler(BaseHTTPRequestHandler):
             if name not in name_groups:
                 name_groups[name] = []
             name_groups[name].append((mid, m))
-        # 对每组同名成员：活跃只保留1个，_left只保留1个，其余真删
+        # 对每组同名成员：有活跃则删所有_left，否则只保留1个_left
         to_delete = []
         for name, group in name_groups.items():
             active = [(mid, m) for mid, m in group if not m.get('_left', False)]
@@ -318,8 +318,12 @@ class FridgeHandler(BaseHTTPRequestHandler):
                 for mid, m in active[:-1]:
                     members[mid]['_left'] = True
                     left.append((mid, members[mid]))
-            # _left超过1个：只保留1个，其余真删
-            if len(left) > 1:
+            # 有活跃成员时：所有_left都删（人已经回来了，留着没意义）
+            if active:
+                for mid, m in left:
+                    to_delete.append(mid)
+            # 没有活跃成员时：只保留1个_left，其余真删
+            elif len(left) > 1:
                 for mid, m in left[1:]:
                     to_delete.append(mid)
         # 真删多余的_left成员

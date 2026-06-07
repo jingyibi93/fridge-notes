@@ -170,10 +170,11 @@ class FridgeHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
 
-        # 清理重复成员
+        # 清理重复成员 + 外来便签
         if path == '/api/cleanup':
             code = params.get('code', [''])[0].upper()
             self._cleanup_members(code)
+            self._cleanup_foreign_notes(code)
             self.send_json({"ok": True})
             return
 
@@ -318,6 +319,23 @@ class FridgeHandler(BaseHTTPRequestHandler):
                 members[mid]['_left'] = True
                 changed = True
         if changed:
+            family['updatedAt'] = time.time()
+            save_data(data)
+
+    @with_lock
+    def _cleanup_foreign_notes(self, code):
+        """清理外来便签：删除作者不属于该家庭成员的便签（真删）"""
+        data = load_data()
+        family = data.get('families', {}).get(code, None)
+        if not family:
+            return
+        members = family.get('members', {})
+        member_names = set(m.get('name', '') for m in members.values())
+        notes = family.get('notes', {})
+        to_delete = [nid for nid, n in notes.items() if n.get('authorName', '') not in member_names]
+        if to_delete:
+            for nid in to_delete:
+                del notes[nid]
             family['updatedAt'] = time.time()
             save_data(data)
 

@@ -4,7 +4,7 @@
   <script>
   // 强制缓存破坏：版本检查在最前面执行，不依赖任何外部代码
   (function(){
-    var V='20260607i';
+    var V='20260607l';
     var s=localStorage.getItem('_fv');
     if(s!==V){
       localStorage.setItem('_fv',V);
@@ -2718,7 +2718,7 @@
 
 // PWA Service Worker + Install + 强制版本刷新
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js?v=20260607k').catch(function(){});
+  navigator.serviceWorker.register('/sw.js?v=20260607l').catch(function(){});
 }
 // 版本检查：如果localStorage里的版本号和当前不同，清缓存刷新
 (function(){
@@ -2743,16 +2743,13 @@ if('serviceWorker' in navigator){
   var stepsEl=document.getElementById('installGuideSteps');
   var deferredPrompt=null;
 
-  // 刷新按钮：始终可用（Safari PWA需用<a>标签点击才能可靠导航）
+  // 刷新按钮：始终可用（Safari PWA用document.write整页替换+meta跳转，最可靠）
   var btnRefresh=document.getElementById('btnRefresh');
   function doRefresh(){
-    btnRefresh.style.transform='rotate(360deg)';
-    btnRefresh.style.transition='transform 0.3s';
-    var a=document.createElement('a');
-    a.href=location.origin+location.pathname+'?fv='+Date.now();
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    var u=location.origin+location.pathname+'?fv='+Date.now();
+    document.open();
+    document.write('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url='+u+'"></head><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;background:#1a1a2e;color:#fff"><p>🔄 刷新中...</p></body></html>');
+    document.close();
   }
   btnRefresh.onclick=doRefresh;
 

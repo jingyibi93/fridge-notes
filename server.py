@@ -136,12 +136,18 @@ class FridgeHandler(BaseHTTPRequestHandler):
             self.send_json({"ok": True})
             return
 
-        # 强制缓存刷新：根路径不带v参数时302重定向
-        if (path == '/' or path == '') and 'v' not in params:
-            self.send_response(302)
-            self.send_header('Location', '/?v=7')
+        # 强制缓存刷新：根路径返回跳转页，避免Safari死缓存
+        if (path == '/' or path == '') and 'fv' not in params:
+            redirect_html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate"><script>location.replace("/?fv="+Date.now());</script></head><body></body></html>'
+            body = redirect_html.encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/html; charset=utf-8')
+            self.send_header('Content-Length', len(body))
             self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            self.send_header('Pragma', 'no-cache')
+            self.send_header('Expires', '0')
             self.end_headers()
+            self.wfile.write(body)
             return
 
         # 轻量版本检查：只返回updatedAt，极快

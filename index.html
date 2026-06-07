@@ -4,10 +4,15 @@
   <script>
   // 强制缓存破坏：版本检查在最前面执行，不依赖任何外部代码
   (function(){
-    var V='20260607f';
+    var V='20260607g';
     var s=localStorage.getItem('_fv');
     if(s!==V){
       localStorage.setItem('_fv',V);
+      // 版本升级时强制清空便签数据，防止旧家庭便签残留
+      localStorage.removeItem('fridge_notes');
+      localStorage.removeItem('fridge_sync_time');
+      localStorage.removeItem('fridge_offline_queue');
+      localStorage.removeItem('fridge_read_mentions');
       if('caches' in window){caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k);});});}
       if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});});}
       if(!location.search||location.search.indexOf('fv=')===-1){
@@ -1118,7 +1123,7 @@
     message:  { emoji:'\uD83D\uDCAC', cls:'type-message' }
   };
   var API = window.location.origin;
-  var APP_VERSION = '20260607f'; // 更新时改此版本号，强制刷新用户缓存
+  var APP_VERSION = '20260607g'; // 更新时改此版本号，强制刷新用户缓存
 
   var familyCode='', myId='', myName='', myColor=MEMBER_COLORS[0];
   var members={}, notes={};
@@ -2698,7 +2703,7 @@
 
 // PWA Service Worker + Install + 强制版本刷新
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js?v=20260607f').catch(function(){});
+  navigator.serviceWorker.register('/sw.js?v=20260607g').catch(function(){});
 }
 // 版本检查：如果localStorage里的版本号和当前不同，清缓存刷新
 (function(){

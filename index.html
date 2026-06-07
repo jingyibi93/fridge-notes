@@ -4,7 +4,7 @@
   <script>
   // 强制缓存破坏：版本检查在最前面执行，不依赖任何外部代码
   (function(){
-    var V='20260607g';
+    var V='20260607h';
     var s=localStorage.getItem('_fv');
     if(s!==V){
       localStorage.setItem('_fv',V);
@@ -1123,7 +1123,7 @@
     message:  { emoji:'\uD83D\uDCAC', cls:'type-message' }
   };
   var API = window.location.origin;
-  var APP_VERSION = '20260607g'; // 更新时改此版本号，强制刷新用户缓存
+  var APP_VERSION = '20260607h'; // 更新时改此版本号，强制刷新用户缓存
 
   var familyCode='', myId='', myName='', myColor=MEMBER_COLORS[0];
   var members={}, notes={};
@@ -2397,12 +2397,21 @@
 
   function showMentionDropdown(query,atIdx){
     var opts=[];
+    var seenNames={}; // 同名去重：每个名字只显示一次（优先活跃成员）
     Object.keys(members).forEach(function(mid){
       var m=members[mid];
       if(mid===myId)return; // 不@自己
       var name=m.name||'';
       var left=m._left?true:false;
       if(name && name.toLowerCase().indexOf(query.toLowerCase())===0){
+        // 同名去重：活跃优先，已跳过的不再加
+        if(seenNames[name]){
+          // 已有活跃的，跳过_left的
+          if(left)return;
+          // 当前是活跃的，替换之前_left的
+          opts=opts.filter(function(o){return o.name!==name;});
+        }
+        seenNames[name]=true;
         opts.push({id:mid,name:name,color:m.color,left:left});
       }
     });
@@ -2471,12 +2480,18 @@
 
   function showCommentMentionDropdown(query,atIdx){
     var opts=[];
+    var seenNames={};
     Object.keys(members).forEach(function(mid){
       var m=members[mid];
       if(mid===myId)return;
       var name=m.name||'';
       var left=m._left?true:false;
       if(name && name.toLowerCase().indexOf(query.toLowerCase())===0){
+        if(seenNames[name]){
+          if(left)return;
+          opts=opts.filter(function(o){return o.name!==name;});
+        }
+        seenNames[name]=true;
         opts.push({id:mid,name:name,color:m.color,left:left});
       }
     });
@@ -2703,7 +2718,7 @@
 
 // PWA Service Worker + Install + 强制版本刷新
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js?v=20260607g').catch(function(){});
+  navigator.serviceWorker.register('/sw.js?v=20260607h').catch(function(){});
 }
 // 版本检查：如果localStorage里的版本号和当前不同，清缓存刷新
 (function(){

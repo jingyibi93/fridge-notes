@@ -4,7 +4,7 @@
   <script>
   // 强制缓存破坏：版本检查在最前面执行，不依赖任何外部代码
   (function(){
-    var V='20260607c';
+    var V='20260607d';
     var s=localStorage.getItem('_fv');
     if(s!==V){
       localStorage.setItem('_fv',V);
@@ -1118,7 +1118,7 @@
     message:  { emoji:'\uD83D\uDCAC', cls:'type-message' }
   };
   var API = window.location.origin;
-  var APP_VERSION = '20260607c'; // 更新时改此版本号，强制刷新用户缓存
+  var APP_VERSION = '20260607d'; // 更新时改此版本号，强制刷新用户缓存
 
   var familyCode='', myId='', myName='', myColor=MEMBER_COLORS[0];
   var members={}, notes={};
@@ -2251,6 +2251,8 @@
 
     // 清空旧数据，防止残留
     if(syncTimer)clearInterval(syncTimer);
+    if(ageTimer)clearInterval(ageTimer);
+    if(reminderTimer)clearInterval(reminderTimer);
     notes={};members={};noteElements={};lastSyncTime=0;lastServerUpdatedAt=0;
     // 清空localStorage中的旧便签和同步时间
     localStorage.removeItem('fridge_notes');
@@ -2262,8 +2264,10 @@
     var container=document.getElementById('notesContainer');
     if(container)container.innerHTML='';
 
-    if(!myId)myId=genId();
-    familyCode=code;myName=name;members[myId]={name:myName,color:myColor};
+    // 生成临时ID，sync后可能替换为已有同名成员的ID
+    var tempId=genId();
+    myId=tempId;
+    familyCode=code;myName=name;
 
     // 先进入冰箱，不等同步完成
     closeSheet('joinSheet','joinOverlay');
@@ -2271,42 +2275,51 @@
     saveLocal();updateUI();hideLanding();
     showToast('正在连接冰箱...');
 
-    // 后台：注册成员
-    apiPost('/api/member',{code:familyCode,id:myId,member:{name:myName,color:myColor}});
-
-    // 后台：拉取已有成员和便签（不阻塞UI）
+    // 先拉取已有数据，确定正确的myId后再注册成员
     apiGet('/api/sync?code='+code+'&since=0').then(function(existingData){
+      var foundExistingId=null;
       if(existingData.ok&&existingData.family){
-        // 处理成员
-        if(existingData.family.members){
-          var existingMembers=existingData.family.members;
-          // 如果已有同名成员（包括已离开的），复用其ID，清除_left标记
-          Object.keys(existingMembers).forEach(function(mid){
-            var em=existingMembers[mid];
-            if(em.name===name){
-              myId=mid;myColor=em.color||myColor;
-              em._left=false;
-            }
-          });
-          members=Object.assign({},existingMembers);
-          members[myId]={name:myName,color:myColor};
+        var existingMembers=existingData.family.members||{};
+        var existingNotes=existingData.family.notes||{};
+
+        // 查找同名成员（优先复用已有身份，不管_left状态）
+        Object.keys(existingMembers).forEach(function(mid){
+          var em=existingMembers[mid];
+          if(em.name===name&&!foundExistingId){
+            foundExistingId=mid;
+            myColor=em.color||myColor;
+          }
+        });
+
+        // 如果找到同名成员，复用其ID
+        if(foundExistingId){
+          myId=foundExistingId;
         }
-        // 处理便签
-        if(existingData.family.notes){
-          var serverNotes=existingData.family.notes;
-          Object.keys(serverNotes).forEach(function(nid){
-            var n=serverNotes[nid];
-            if(n._deleted){delete notes[nid];removeNoteEl(nid);}
-            else{normalizeNotePos(n);notes[nid]=n;renderNote(nid);}
-          });
-        }
-        // 更新同步时间戳，避免syncFromServer重复拉取
+
+        // 设置成员数据
+        members=Object.assign({},existingMembers);
+        members[myId]={name:myName,color:myColor};
+
+        // 处理便签：全量同步只接受服务器数据，不补传本地
+        Object.keys(existingNotes).forEach(function(nid){
+          var n=existingNotes[nid];
+          if(n._deleted){delete notes[nid];removeNoteEl(nid);}
+          else{normalizeNotePos(n);notes[nid]=n;renderNote(nid);}
+        });
+
+        // 更新同步时间戳
         lastSyncTime=Math.max(0,(existingData.serverTime||0)-2);
         if(existingData.family.updatedAt)lastServerUpdatedAt=existingData.family.updatedAt;
-        saveLocal();updateUI();
-        showToast('同步完成！');
       }
-      // 首次同步完成后再启动轮询
+
+      // 用正确的myId注册成员（服务器会自动去重同名成员）
+      apiPost('/api/member',{code:familyCode,id:myId,member:{name:myName,color:myColor}});
+
+      // 调用服务器清理重复成员
+      apiGet('/api/cleanup?code='+familyCode);
+
+      saveLocal();updateUI();
+      showToast('同步完成！');
       startSync();startAgeTick();startReminderCheck();
       setTimeout(function(){showToast('欢迎回家，'+myName+'！');},800);
     });
@@ -2334,6 +2347,8 @@
     if(container)container.innerHTML='';
     document.getElementById('memberPanel').classList.remove('active');
     if(syncTimer)clearInterval(syncTimer);
+    if(ageTimer)clearInterval(ageTimer);
+    if(reminderTimer)clearInterval(reminderTimer);
     // 清空localStorage
     localStorage.removeItem('fridge_notes');
     localStorage.removeItem('fridge_sync_time');
@@ -2673,7 +2688,7 @@
 
 // PWA Service Worker + Install + 强制版本刷新
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js?v=20260607c').catch(function(){});
+  navigator.serviceWorker.register('/sw.js?v=20260607d').catch(function(){});
 }
 // 版本检查：如果localStorage里的版本号和当前不同，清缓存刷新
 (function(){

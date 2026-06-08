@@ -4,7 +4,7 @@
   <script>
   // 强制缓存破坏：版本检查在最前面执行，不依赖任何外部代码
   (function(){
-    var V='20260608b';
+    var V='20260608c';
     // 硬编码刷新阈值：fv参数比此值旧就强制跳根路径清SW缓存
     var FV_MIN=1749373200000; // 2026-06-08 15:00 CST
     var s=localStorage.getItem('_fv');
@@ -1135,7 +1135,7 @@
     message:  { emoji:'\uD83D\uDCAC', cls:'type-message' }
   };
   var API = window.location.origin;
-  var APP_VERSION = '20260608b'; // 更新时改此版本号，强制刷新用户缓存
+  var APP_VERSION = '20260608c'; // 更新时改此版本号，强制刷新用户缓存
 
   var familyCode='', myId='', myName='', myColor=MEMBER_COLORS[0];
   var members={}, notes={};
@@ -2757,7 +2757,7 @@
 
 // PWA Service Worker + Install + 强制版本刷新
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js?v=20260608b').catch(function(){});
+  navigator.serviceWorker.register('/sw.js?v=20260608c').catch(function(){});
 }
 // 版本检查：如果localStorage里的版本号和当前不同，清缓存刷新
 (function(){
@@ -2796,6 +2796,7 @@ if('serviceWorker' in navigator){
     location.replace(u);
   }
   btnRefresh.onclick=doRefresh;
+  btnRefresh.addEventListener('touchend',function(e){e.preventDefault();doRefresh();});
 
   // 已是独立模式则隐藏安装按钮
   var isStandalone=window.navigator.standalone===true||window.matchMedia('(display-mode: standalone)').matches;

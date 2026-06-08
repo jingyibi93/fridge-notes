@@ -4,9 +4,9 @@
   <script>
   // 强制缓存破坏：版本检查在最前面执行，不依赖任何外部代码
   (function(){
-    var V='20260608a';
+    var V='20260608b';
     // 硬编码刷新阈值：fv参数比此值旧就强制跳根路径清SW缓存
-    var FV_MIN=1749268800000; // 2026-06-07 14:00 CST
+    var FV_MIN=1749373200000; // 2026-06-08 15:00 CST
     var s=localStorage.getItem('_fv');
     var needPurge=false;
     if(s!==V){
@@ -15,7 +15,7 @@
       localStorage.removeItem('fridge_notes');
       localStorage.removeItem('fridge_sync_time');
       localStorage.removeItem('fridge_offline_queue');
-      localStorage.removeItem('fridge_read_mentions');
+      // 不再清除已读通知记录 — 保留用户已看过的状态
       if('caches' in window){caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k);});});}
       if('serviceWorker' in navigator){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister();});});}
       needPurge=true;
@@ -1135,7 +1135,7 @@
     message:  { emoji:'\uD83D\uDCAC', cls:'type-message' }
   };
   var API = window.location.origin;
-  var APP_VERSION = '20260607l'; // 更新时改此版本号，强制刷新用户缓存
+  var APP_VERSION = '20260608b'; // 更新时改此版本号，强制刷新用户缓存
 
   var familyCode='', myId='', myName='', myColor=MEMBER_COLORS[0];
   var members={}, notes={};
@@ -2291,10 +2291,9 @@
     if(ageTimer)clearInterval(ageTimer);
     if(reminderTimer)clearInterval(reminderTimer);
     notes={};members={};noteElements={};lastSyncTime=0;lastServerUpdatedAt=0;
-    // 清空localStorage中的旧便签和同步时间
+    // 清空localStorage中的旧便签和同步时间（保留已读通知记录）
     localStorage.removeItem('fridge_notes');
     localStorage.removeItem('fridge_sync_time');
-    localStorage.removeItem('fridge_read_mentions');
     // 清空离线队列，防止旧家庭的操作发到新家庭
     offlineQueue=[];saveOfflineQueue();
     // 清空冰箱上的旧便签DOM
@@ -2758,7 +2757,7 @@
 
 // PWA Service Worker + Install + 强制版本刷新
 if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('/sw.js?v=20260607m').catch(function(){});
+  navigator.serviceWorker.register('/sw.js?v=20260608b').catch(function(){});
 }
 // 版本检查：如果localStorage里的版本号和当前不同，清缓存刷新
 (function(){

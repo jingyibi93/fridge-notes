@@ -4,7 +4,7 @@
   <script>
   // 强制缓存破坏：版本检查在最前面执行，不依赖任何外部代码
   (function(){
-    var V='20260607l';
+    var V='20260608a';
     // 硬编码刷新阈值：fv参数比此值旧就强制跳根路径清SW缓存
     var FV_MIN=1749268800000; // 2026-06-07 14:00 CST
     var s=localStorage.getItem('_fv');
@@ -1390,8 +1390,12 @@
         if(wasOffline&&offlineQueue.length){flushOfflineQueue();}
         if(result.family){
           if(result.family.members){
-            // 用服务器members整体替换，避免离开的成员残留导致重复
-            members=result.family.members;
+            // 用服务器members整体替换，过滤掉_left成员避免UI重复
+            members={};
+            Object.keys(result.family.members).forEach(function(mid){
+              var m=result.family.members[mid];
+              if(!m._left) members[mid]=m;
+            });
             // 确保自己在members里
             if(myId)members[myId]={name:myName,color:myColor};
           }
@@ -1411,11 +1415,17 @@
               });
             }
             // 合并服务器便签到本地
+            // 客户端二次验证：当前家庭的成员名字集合
+            var memberNames=Object.values(members).map(function(m){return m.name;});
             serverNoteIds.forEach(function(nid){
               if(nid in pendingSaves)return; // 跳过当前正在保存的
               var n=result.family.notes[nid];
               if(n._deleted){delete notes[nid];removeNoteEl(nid);serverDeletedIds[nid]=Date.now();}
               else{
+                // 客户端验证：便签作者必须属于当前家庭，否则丢弃（防跨家庭污染）
+                if(n.authorName && memberNames.indexOf(n.authorName)===-1){
+                  delete notes[nid];removeNoteEl(nid);return;
+                }
                 normalizeNotePos(n);
                 n._fc=familyCode; // 标记归属当前家庭
                 var localNote=notes[nid];
@@ -2328,10 +2338,16 @@
         members[myId]={name:myName,color:myColor};
 
         // 处理便签：全量同步只接受服务器数据，不补传本地
+        // 客户端二次验证：当前家庭的成员名字集合
+        var memberNames=Object.values(members).map(function(m){return m.name;});
         Object.keys(existingNotes).forEach(function(nid){
           var n=existingNotes[nid];
           if(n._deleted){delete notes[nid];removeNoteEl(nid);}
-          else{normalizeNotePos(n);n._fc=code;notes[nid]=n;renderNote(nid);}
+          else{
+            // 验证便签作者属于当前家庭，防止跨家庭污染
+            if(n.authorName && memberNames.indexOf(n.authorName)===-1){return;}
+            normalizeNotePos(n);n._fc=code;notes[nid]=n;renderNote(nid);
+          }
         });
 
         // 更新同步时间戳
@@ -2341,14 +2357,26 @@
 
       // 用正确的myId注册成员（服务器会自动去重同名成员）
       apiPost('/api/member',{code:familyCode,id:myId,member:{name:myName,color:myColor}});
-
-      // 调用服务器清理重复成员
-      apiGet('/api/cleanup?code='+familyCode);
-
+      // 立即开始轮询，不等cleanup
       saveLocal();updateUI();
-      showToast('同步完成！');
       startSync();startAgeTick();startReminderCheck();
+      showToast('同步完成！');
       setTimeout(function(){showToast('欢迎回家，'+myName+'！');},800);
+
+      // 异步清理重复成员，清理完后拉最新members更新UI
+      apiGet('/api/cleanup?code='+familyCode).then(function(){
+        apiGet('/api/family?code='+familyCode).then(function(famResult){
+          if(famResult.ok && famResult.members){
+            members={};
+            Object.keys(famResult.members).forEach(function(mid){
+              var m=famResult.members[mid];
+              if(!m._left) members[mid]=m;
+            });
+            members[myId]={name:myName,color:myColor};
+            saveLocal();updateUI();
+          }
+        });
+      });
     });
   };
   // 解绑旧事件，绑定新事件
@@ -2755,13 +2783,18 @@ if('serviceWorker' in navigator){
   var stepsEl=document.getElementById('installGuideSteps');
   var deferredPrompt=null;
 
-  // 刷新按钮：始终可用（Safari PWA用document.write整页替换+meta跳转，最可靠）
+  // 刷新按钮：始终可用（多种方案降级，兼容Safari PWA）
   var btnRefresh=document.getElementById('btnRefresh');
   function doRefresh(){
     var u=location.origin+location.pathname+'?fv='+Date.now();
-    document.open();
-    document.write('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url='+u+'"></head><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;background:#1a1a2e;color:#fff"><p>🔄 刷新中...</p></body></html>');
-    document.close();
+    // 方案1: 直接赋值（最标准）
+    try{top.location.href=u;return;}catch(e){}
+    // 方案2: document.write替换整页
+    try{document.open();document.write('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url='+u+'"></head><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;background:#1a1a2e;color:#fff"><p>🔄 刷新中...</p></body></html>');document.close();return;}catch(e){}
+    // 方案3: window.open + 关闭当前页
+    try{window.open(u,'_self');return;}catch(e){}
+    // 方案4: 最后兜底
+    location.replace(u);
   }
   btnRefresh.onclick=doRefresh;
 

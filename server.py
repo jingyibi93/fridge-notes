@@ -222,7 +222,10 @@ class FridgeHandler(BaseHTTPRequestHandler):
             code = params.get('code', [''])[0].upper()
             data = load_data()
             family = data.get('families', {}).get(code, None)
-            self.send_json({"ok": True, "exists": family is not None})
+            if family:
+                self.send_json({"ok": True, "exists": True, "members": family.get('members', {})})
+            else:
+                self.send_json({"ok": True, "exists": False})
             return
 
         self.serve_static(path)

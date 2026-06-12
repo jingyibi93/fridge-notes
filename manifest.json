@@ -1,20 +1,19 @@
 {
   "name": "冰箱便签",
   "short_name": "冰箱便签",
-  "description": "家庭共享的冰箱便签空间，用贴纸记录生活与提醒",
-  "start_url": "/",
+  "description": "一个给家人和情侣共享便签、照片贴与家庭记忆的奶油风冰箱 PWA。",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#1a1a2e",
-  "theme_color": "#0f3460",
   "orientation": "portrait",
+  "background_color": "#f8f1df",
+  "theme_color": "#f8f1df",
   "icons": [
-    { "src": "icons/icon-72x72.png", "sizes": "72x72", "type": "image/png" },
-    { "src": "icons/icon-96x96.png", "sizes": "96x96", "type": "image/png" },
-    { "src": "icons/icon-128x128.png", "sizes": "128x128", "type": "image/png" },
-    { "src": "icons/icon-144x144.png", "sizes": "144x144", "type": "image/png" },
-    { "src": "icons/icon-152x152.png", "sizes": "152x152", "type": "image/png" },
-    { "src": "icons/icon-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "icons/icon-384x384.png", "sizes": "384x384", "type": "image/png" },
-    { "src": "icons/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    {
+      "src": "./assets/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
   ]
 }

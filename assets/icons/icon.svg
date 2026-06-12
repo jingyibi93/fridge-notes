@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#f8f1df"/>
+  <ellipse cx="256" cy="286" rx="184" ry="206" fill="#e4cfaa" opacity=".32"/>
+  <rect x="142" y="84" width="228" height="344" rx="44" fill="#f6f1e7" stroke="#d7d0c0" stroke-width="6"/>
+  <path d="M142 226h228" stroke="#d7d0c0" stroke-width="7"/>
+  <rect x="168" y="142" width="18" height="78" rx="9" fill="#fffaf0" stroke="#ddd4c4" stroke-width="4"/>
+  <rect x="168" y="266" width="18" height="118" rx="9" fill="#fffaf0" stroke="#ddd4c4" stroke-width="4"/>
+  <rect x="232" y="146" width="94" height="70" rx="10" fill="#fff1a8" stroke="#d8b96f" stroke-width="3" transform="rotate(-7 279 181)"/>
+  <rect x="234" y="250" width="102" height="76" rx="12" fill="#cfe8ce" stroke="#adc4a7" stroke-width="3" transform="rotate(5 285 288)"/>
+  <rect x="194" y="304" width="94" height="66" rx="11" fill="#f2bac5" stroke="#d999a8" stroke-width="3" transform="rotate(-4 241 337)"/>
+  <circle cx="328" cy="126" r="18" fill="#a83232"/>
+  <text x="256" y="462" text-anchor="middle" font-family="serif" font-size="42" font-weight="700" fill="#2d2924">冰箱便签</text>
+</svg>

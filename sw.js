@@ -1,54 +1,55 @@
-const CACHE_NAME = 'fridge-v18';
+const CACHE_NAME = "fridge-memo-pwa-v20260612";
 
-// 安装：不阻塞，缓存尽力而为
-self.addEventListener('install', function(event) {
-  self.skipWaiting();
+const CORE_ASSETS = [
+  "./",
+  "./index.html",
+  "./manifest.json",
+  "./css/styles.css",
+  "./js/app.js",
+  "./js/store.js",
+  "./js/render.js",
+  "./js/drag.js",
+  "./js/supabase-config.js",
+  "./js/cloud-sync.js",
+  "./assets/icons/icon.svg"
+];
+
+self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(function(cache) {
-      // 逐个缓存，单个失败不影响整体
-      return Promise.allSettled([
-        cache.add('/'),
-        cache.add('/manifest.json'),
-        cache.add('/icons/icon-192x192.png'),
-        cache.add('/icons/icon-512x512.png')
-      ]);
-    })
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(CORE_ASSETS))
+      .then(() => self.skipWaiting())
   );
 });
 
-// 激活：清理旧缓存
-self.addEventListener('activate', function(event) {
+self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then(function(names) {
-      return Promise.all(
-        names.filter(function(n) { return n !== CACHE_NAME; })
-             .map(function(n) { return caches.delete(n); })
-      );
-    })
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// 请求策略：API请求走网络，静态资源优先缓存
-self.addEventListener('fetch', function(event) {
-  var url = new URL(event.request.url);
-  
-  // API请求不走缓存
-  if (url.pathname.indexOf('/api/') === 0) {
-    event.respondWith(
-      fetch(event.request).catch(function() {
-        return new Response(JSON.stringify({ok: false, offline: true}), {
-          headers: {'Content-Type': 'application/json'}
-        });
-      })
-    );
-    return;
-  }
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
+  if (request.method !== "GET") return;
 
-  // 其他请求：网络优先，失败用缓存
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+
   event.respondWith(
-    fetch(event.request).catch(function() {
-      return caches.match(event.request);
+    caches.match(request, { ignoreSearch: true }).then((cached) => {
+      const network = fetch(request)
+        .then((response) => {
+          if (response && response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          }
+          return response;
+        })
+        .catch(() => cached);
+
+      return cached || network;
     })
   );
 });

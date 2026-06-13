@@ -22,15 +22,28 @@
 /Users/jingyibi/Documents/Codex/2026-06-09/codex/outputs/fridge-memo-app/supabase-schema.sql
 ```
 
-## 3. 填写本地配置
+## 3. 填写 Railway 环境变量
 
-打开：
+部署到 Railway 后，进入 Railway 的 `Variables`，新增这几个变量：
+
+```text
+SUPABASE_ENABLED=true
+SUPABASE_URL=https://你的项目编号.supabase.co
+SUPABASE_ANON_KEY=你的 anon public key
+SUPABASE_STATE_TABLE=fridge_states
+```
+
+注意：只填 `anon public key`，不要填 `service_role` key。
+
+线上版本会自动从 Railway 读取这些变量，不需要把 key 写死在 GitHub 代码里。
+
+如果只是本地测试，也可以打开：
 
 ```text
 /Users/jingyibi/Documents/Codex/2026-06-09/codex/outputs/fridge-memo-app/js/supabase-config.js
 ```
 
-改成类似这样：
+临时改成类似这样：
 
 ```js
 window.FridgeSupabaseConfig = {
@@ -61,4 +74,3 @@ window.FridgeSupabaseConfig = {
 - 两个人完全同时编辑同一张便签时，后保存的人可能覆盖前一个人的改动
 - 照片目前仍可能以压缩后的数据放进快照，正式版应该改用 Supabase Storage
 - 现在的权限为了方便内测较宽松，正式版必须接登录和家庭成员权限
-

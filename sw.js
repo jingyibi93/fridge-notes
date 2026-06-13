@@ -4,6 +4,7 @@ const CORE_ASSETS = [
   "./",
   "./index.html",
   "./manifest.json",
+  "./runtime-config.js",
   "./css/styles.css",
   "./js/app.js",
   "./js/store.js",

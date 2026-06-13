@@ -43,6 +43,7 @@ const memberInitial = document.querySelector("#memberInitial");
 const activeFridgeTitle = document.querySelector("#activeFridgeTitle");
 const familyCode = document.querySelector("#familyCode");
 const copyFamilyCodeButton = document.querySelector("#copyFamilyCodeButton");
+const copyInviteLinkButton = document.querySelector("#copyInviteLinkButton");
 const leaveFridgeButton = document.querySelector("#leaveFridgeButton");
 const notificationDot = document.querySelector("#notificationDot");
 const notificationList = document.querySelector("#notificationList");
@@ -187,6 +188,16 @@ function openHomeSetup(mode) {
   homeSetupSheet.hidden = false;
   homeSetupSheet.setAttribute("aria-hidden", "false");
   setTimeout(() => homeSetupCodeInput.focus(), 80);
+}
+
+function openInviteFromLink(code) {
+  const cleanCode = normalizeInviteCode(code);
+  if (cleanCode.length !== 8) return false;
+  openHomeSetup("join");
+  homeSetupCodeInput.value = cleanCode;
+  homeInviteLabel.textContent = "邀请码（来自邀请链接）";
+  setTimeout(() => homeSetupNameInput.focus(), 80);
+  return true;
 }
 
 function closeHomeSetup() {
@@ -362,6 +373,34 @@ async function copyFamilyCode() {
   } catch (error) {
     showToast("复制失败，可以长按邀请码复制");
   }
+}
+
+function buildInviteLink(code) {
+  const cleanCode = normalizeInviteCode(code);
+  const url = new URL(window.location.href);
+  url.searchParams.set("fridge", cleanCode);
+  return url.toString();
+}
+
+async function copyInviteLink() {
+  const code = familyCode.textContent.trim();
+  if (!code) return;
+  try {
+    await copyText(buildInviteLink(code));
+    const cloudReady = Boolean(window.FridgeCloudSync?.status?.enabled);
+    showToast(cloudReady ? "邀请链接已复制，可以发给家人" : "邀请链接已复制，开启云同步后可协同");
+  } catch (error) {
+    showToast("复制失败，可以先复制邀请码");
+  }
+}
+
+function handleInitialInviteLink() {
+  const params = new URLSearchParams(window.location.search);
+  const code = normalizeInviteCode(params.get("fridge") || params.get("code") || params.get("invite"));
+  if (!code) return;
+  homeScreen.hidden = false;
+  homeScreen.classList.remove("done");
+  openInviteFromLink(code);
 }
 
 function readFileAsDataUrl(file) {
@@ -737,6 +776,7 @@ function registerEvents() {
   });
   leaveFridgeButton.addEventListener("click", leaveFridge);
   copyFamilyCodeButton.addEventListener("click", copyFamilyCode);
+  copyInviteLinkButton.addEventListener("click", copyInviteLink);
   document.querySelector("#saveNoteButton").addEventListener("click", saveNote);
   document.querySelector("#closeReaderButton").addEventListener("click", closeReader);
   favoriteButton.addEventListener("click", () => {
@@ -804,6 +844,7 @@ function registerServiceWorker() {
 
 registerEvents();
 refresh();
+handleInitialInviteLink();
 registerServiceWorker();
 
 setInterval(updateNotificationDot, 30 * 1000);

@@ -19,6 +19,20 @@ const mimeTypes = {
   ".txt": "text/plain; charset=utf-8"
 };
 
+function jsString(value) {
+  return JSON.stringify(String(value || ""));
+}
+
+function runtimeConfigScript() {
+  const enabled = ["1", "true", "yes", "on"].includes(String(process.env.SUPABASE_ENABLED || "").toLowerCase());
+  return `window.FridgeSupabaseConfig = {
+  enabled: ${enabled && Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY)},
+  url: ${jsString(process.env.SUPABASE_URL)},
+  anonKey: ${jsString(process.env.SUPABASE_ANON_KEY)},
+  stateTable: ${jsString(process.env.SUPABASE_STATE_TABLE || "fridge_states")}
+};`;
+}
+
 function safeFilePath(urlPath) {
   const decodedPath = decodeURIComponent(urlPath.split("?")[0]);
   const requestedPath = decodedPath === "/" ? "/index.html" : decodedPath;
@@ -28,6 +42,16 @@ function safeFilePath(urlPath) {
 }
 
 const server = http.createServer((req, res) => {
+  if ((req.url || "").split("?")[0] === "/runtime-config.js") {
+    const content = runtimeConfigScript();
+    res.writeHead(200, {
+      "Content-Type": "text/javascript; charset=utf-8",
+      "Cache-Control": "no-cache"
+    });
+    res.end(content);
+    return;
+  }
+
   const filePath = safeFilePath(req.url || "/");
   if (!filePath) {
     res.writeHead(403);

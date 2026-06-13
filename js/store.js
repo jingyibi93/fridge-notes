@@ -1,25 +1,31 @@
 const STORAGE_KEY = "fridge_memo_app_state_v1";
 
 const now = Date.now();
-function storeMagnetSvg(label, color = "#fff1a8") {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><filter id="s"><feDropShadow dx="0" dy="3" stdDeviation="2" flood-color="#7d5f34" flood-opacity=".28"/></filter><g filter="url(#s)"><circle cx="48" cy="48" r="31" fill="${color}" stroke="#8b6d48" stroke-opacity=".28" stroke-width="3"/><circle cx="37" cy="36" r="9" fill="#fffaf0" opacity=".72"/><text x="48" y="60" text-anchor="middle" font-size="34" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif">${label}</text></g></svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-}
-
-const storeMagnetAssets = [
-  storeMagnetSvg("🍺", "#f1c078"),
-  storeMagnetSvg("🥐", "#f0b46f"),
-  storeMagnetSvg("🥖", "#f7dca8"),
-  storeMagnetSvg("🥛", "#f8f1df"),
-  storeMagnetSvg("☕", "#d7b384"),
-  storeMagnetSvg("🍓", "#efaaa8"),
-  storeMagnetSvg("🍞", "#ecc48e"),
-  storeMagnetSvg("🍳", "#fff6cf"),
-  storeMagnetSvg("🥝", "#cfe8ce"),
-  storeMagnetSvg("🍡", "#f5d5d5"),
-  storeMagnetSvg("🍪", "#e8c16f"),
-  storeMagnetSvg("🍩", "#b7dff0")
+const MAGNET_ASSET_PATHS = [
+  "assets/magnets/beer.png",
+  "assets/magnets/yangjiaobao.png",
+  "assets/magnets/pain.png",
+  "assets/magnets/milk.png",
+  "assets/magnets/coffee.png",
+  "assets/magnets/kersong.png",
+  "assets/magnets/strawberry.png",
+  "assets/magnets/bread.png",
+  "assets/magnets/egg.png?v=trim",
+  "assets/magnets/bread2.png?v=trim",
+  "assets/magnets/kiwi-fruit.png?v=trim",
+  "assets/magnets/tanghulu.png?v=trim",
+  "assets/magnets/cookie.png?v=trim",
+  "assets/magnets/donut.png?v=trim",
+  "assets/magnets/basket.png",
+  "assets/magnets/croissant.png",
+  "assets/magnets/espresso.png",
+  "assets/magnets/pain-bag.png",
+  "assets/magnets/tart.png",
+  "assets/magnets/toaster.png",
+  "assets/magnets/tomato-bag.png"
 ];
+
+const storeMagnetAssets = MAGNET_ASSET_PATHS;
 
 const defaultState = {
   fridgeName: "小家的冰箱",
@@ -50,7 +56,7 @@ const defaultState = {
       authorId: "m1",
       preserved: false,
       isFavorite: false,
-      pin: storeMagnetAssets[5],
+      pin: "assets/magnets/strawberry.png",
       checkedItems: {},
       comments: [
         { id: "c1", authorId: "m2", text: "蘑菇我来处理。", time: now - 1000 * 60 * 25 }
@@ -70,7 +76,7 @@ const defaultState = {
       authorId: "m2",
       preserved: false,
       isFavorite: false,
-      pin: storeMagnetAssets[3],
+      pin: "assets/magnets/milk.png",
       checkedItems: { 1: true },
       comments: []
     },
@@ -89,7 +95,7 @@ const defaultState = {
       authorId: "m1",
       preserved: true,
       isFavorite: false,
-      pin: storeMagnetAssets[1],
+      pin: "assets/magnets/yangjiaobao.png",
       checkedItems: {},
       comments: []
     },
@@ -99,7 +105,7 @@ const defaultState = {
       type: "photo",
       text: "weekend",
       emoji: "☕",
-      pin: storeMagnetAssets[4],
+      pin: "assets/magnets/coffee.png",
       time: now - 1000 * 60 * 60 * 76,
       x: 67,
       y: 57,
@@ -121,7 +127,7 @@ const defaultState = {
       type: "photo",
       text: "our day",
       emoji: "♡",
-      pin: storeMagnetAssets[6],
+      pin: "assets/magnets/bread.png",
       time: now - 1000 * 60 * 60 * 96,
       x: 38,
       y: 68,

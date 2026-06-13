@@ -5,25 +5,32 @@ const noteLabels = {
   photo: "图片冰箱贴"
 };
 
-function renderMagnetSvg(label, color = "#fff1a8") {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96"><filter id="s"><feDropShadow dx="0" dy="3" stdDeviation="2" flood-color="#7d5f34" flood-opacity=".28"/></filter><g filter="url(#s)"><circle cx="48" cy="48" r="31" fill="${color}" stroke="#8b6d48" stroke-opacity=".28" stroke-width="3"/><circle cx="37" cy="36" r="9" fill="#fffaf0" opacity=".72"/><text x="48" y="60" text-anchor="middle" font-size="34" font-family="Apple Color Emoji, Segoe UI Emoji, sans-serif">${label}</text></g></svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-}
-
-const renderMagnetAssets = [
-  renderMagnetSvg("🍺", "#f1c078"),
-  renderMagnetSvg("🥐", "#f0b46f"),
-  renderMagnetSvg("🥖", "#f7dca8"),
-  renderMagnetSvg("🥛", "#f8f1df"),
-  renderMagnetSvg("☕", "#d7b384"),
-  renderMagnetSvg("🍓", "#efaaa8"),
-  renderMagnetSvg("🍞", "#ecc48e"),
-  renderMagnetSvg("🍳", "#fff6cf"),
-  renderMagnetSvg("🥝", "#cfe8ce"),
-  renderMagnetSvg("🍡", "#f5d5d5"),
-  renderMagnetSvg("🍪", "#e8c16f"),
-  renderMagnetSvg("🍩", "#b7dff0")
+const MAGNET_ASSET_PATHS = [
+  "assets/magnets/beer.png",
+  "assets/magnets/yangjiaobao.png",
+  "assets/magnets/pain.png",
+  "assets/magnets/milk.png",
+  "assets/magnets/coffee.png",
+  "assets/magnets/kersong.png",
+  "assets/magnets/strawberry.png",
+  "assets/magnets/bread.png",
+  "assets/magnets/egg.png?v=trim",
+  "assets/magnets/bread2.png?v=trim",
+  "assets/magnets/kiwi-fruit.png?v=trim",
+  "assets/magnets/tanghulu.png?v=trim",
+  "assets/magnets/cookie.png?v=trim",
+  "assets/magnets/donut.png?v=trim",
+  "assets/magnets/basket.png",
+  "assets/magnets/croissant.png",
+  "assets/magnets/espresso.png",
+  "assets/magnets/pain-bag.png",
+  "assets/magnets/tart.png",
+  "assets/magnets/toaster.png",
+  "assets/magnets/tomato-bag.png"
 ];
+
+const renderMagnetAssets = MAGNET_ASSET_PATHS;
+
 const oldPins = new Set(["✦", "♡", "✿", "✓", "☎", "🍅", "🍓", "🥐", "🥨", "🍞", "🥖", "🥝", "🍩", "☕", "🥛", "🧈", "🍳", "🌶️", "🧄", "🍎"]);
 
 function escapeHtml(text) {

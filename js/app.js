@@ -65,7 +65,7 @@ const memoryDetail = document.querySelector("#memoryDetail");
 const closeMemoryDetailButton = document.querySelector("#closeMemoryDetailButton");
 const memoryDetailDate = document.querySelector("#memoryDetailDate");
 const memoryDetailList = document.querySelector("#memoryDetailList");
-document.documentElement.dataset.appVersion = "20260612-cloud-mvp";
+document.documentElement.dataset.appVersion = "20260613-clear-default";
 
 const placeholders = {
   message: "写点今天想被看见的小事...",
@@ -460,7 +460,7 @@ function refresh() {
   const state = window.FridgeStore.getState();
   const activeMember = window.FridgeStore.getActiveMember();
   memberInitial.textContent = activeMember.name.slice(0, 1);
-  activeFridgeTitle.textContent = state.fridgeName || "小家的冰箱";
+  activeFridgeTitle.textContent = state.fridgeName || "冰箱便签";
   familyCode.textContent = state.familyCode;
   renderHomeFridges();
   window.FridgeRender.renderBoard(board, openReader);

@@ -27,122 +27,29 @@ const MAGNET_ASSET_PATHS = [
 
 const storeMagnetAssets = MAGNET_ASSET_PATHS;
 
-const defaultState = {
-  fridgeName: "小家的冰箱",
-  familyCode: "FRIDGE08",
-  activeFridgeId: "FRIDGE08",
+const defaultMembers = [
+  { id: "m1", name: "我", color: "#a83232", left: false }
+];
+
+const emptyFridgeState = {
+  fridgeName: "",
+  familyCode: "",
+  activeFridgeId: "",
   activeMemberId: "m1",
   maxZ: 20,
   notifications: [],
   firedReminderIds: [],
   favoriteArchive: [],
-  members: [
-    { id: "m1", name: "小毕", color: "#a83232", left: false },
-    { id: "m2", name: "长工", color: "#174f43", left: false },
-    { id: "m3", name: "妈妈", color: "#315e8c", left: false }
-  ],
-  notes: [
-    {
-      id: "n1",
-      itemType: "note",
-      type: "message",
-      text: "今晚想吃番茄牛腩。\n冰箱里还有半盒蘑菇。",
-      time: now - 1000 * 60 * 60 * 4,
-      x: 54,
-      y: 16,
-      z: 8,
-      rotate: -2,
-      width: 128,
-      authorId: "m1",
-      preserved: false,
-      isFavorite: false,
-      pin: "assets/magnets/strawberry.png",
-      checkedItems: {},
-      comments: [
-        { id: "c1", authorId: "m2", text: "蘑菇我来处理。", time: now - 1000 * 60 * 25 }
-      ]
-    },
-    {
-      id: "n2",
-      itemType: "note",
-      type: "shopping",
-      text: "牛奶\n鸡蛋\n草莓\n厨房纸",
-      time: now - 1000 * 60 * 60 * 28,
-      x: 72,
-      y: 29,
-      z: 9,
-      rotate: 2,
-      width: 116,
-      authorId: "m2",
-      preserved: false,
-      isFavorite: false,
-      pin: "assets/magnets/milk.png",
-      checkedItems: { 1: true },
-      comments: []
-    },
-    {
-      id: "n3",
-      itemType: "note",
-      type: "reminder",
-      text: "周五晚上记得给妈妈打电话。",
-      time: now - 1000 * 60 * 60 * 52,
-      reminderTime: now + 1000 * 60 * 60 * 8,
-      x: 34,
-      y: 43,
-      z: 10,
-      rotate: -1,
-      width: 122,
-      authorId: "m1",
-      preserved: true,
-      isFavorite: false,
-      pin: "assets/magnets/yangjiaobao.png",
-      checkedItems: {},
-      comments: []
-    },
-    {
-      id: "p1",
-      itemType: "photo",
-      type: "photo",
-      text: "weekend",
-      emoji: "☕",
-      pin: "assets/magnets/coffee.png",
-      time: now - 1000 * 60 * 60 * 76,
-      x: 67,
-      y: 57,
-      z: 11,
-      rotate: 4,
-      width: 94,
-      authorId: "m2",
-      preserved: true,
-      isFavorite: false,
-      art: "linear-gradient(145deg, #d6e5d2, #fff2d4 48%, #d9b887)",
-      imageData: null,
-      comments: [
-        { id: "c2", authorId: "m1", text: "这张好有周末感。", time: now - 1000 * 60 * 10 }
-      ]
-    },
-    {
-      id: "p2",
-      itemType: "photo",
-      type: "photo",
-      text: "our day",
-      emoji: "♡",
-      pin: "assets/magnets/bread.png",
-      time: now - 1000 * 60 * 60 * 96,
-      x: 38,
-      y: 68,
-      z: 12,
-      rotate: -5,
-      width: 96,
-      authorId: "m3",
-      preserved: false,
-      isFavorite: false,
-      art: "linear-gradient(145deg, #efe3d1, #f6cfd5 50%, #b9d1e5)",
-      imageData: null,
-      comments: []
-    }
-  ]
+  members: cloneMembers(),
+  notes: [],
+  fridges: []
 };
+
+function cloneMembers() {
+  return JSON.parse(JSON.stringify(defaultMembers));
+}
+
+const defaultState = emptyFridgeState;
 
 let state = loadState();
 let cloudPersistHandler = null;
@@ -154,16 +61,15 @@ function clone(value) {
 
 function normalizeFlatState(source) {
   return {
-    ...clone(defaultState),
     ...source,
-    fridgeName: source.fridgeName || source.name || "小家的冰箱",
-    familyCode: normalizeFamilyCode(source.familyCode || source.inviteCode || "FRIDGE08") || "FRIDGE08",
-    activeFridgeId: normalizeFamilyCode(source.activeFridgeId || source.familyCode || source.inviteCode || "FRIDGE08") || "FRIDGE08",
-    members: (source.members?.length ? source.members : clone(defaultState.members)).map((member) => ({
+    fridgeName: source.fridgeName || source.name || "",
+    familyCode: normalizeFamilyCode(source.familyCode || source.inviteCode || ""),
+    activeFridgeId: normalizeFamilyCode(source.activeFridgeId || source.familyCode || source.inviteCode || ""),
+    members: (source.members?.length ? source.members : cloneMembers()).map((member) => ({
       left: false,
       ...member
     })),
-    notes: (source.notes?.length ? source.notes : clone(defaultState.notes)).map((note) => ({
+    notes: (source.notes?.length ? source.notes : []).map((note) => ({
       comments: [],
       checkedItems: {},
       mentions: [],
@@ -187,8 +93,8 @@ function normalizeFlatState(source) {
 function fridgeSnapshot(source = state) {
   return {
     id: normalizeFamilyCode(source.familyCode) || makeFamilyCode(),
-    name: source.fridgeName || "小家的冰箱",
-    familyCode: normalizeFamilyCode(source.familyCode) || makeFamilyCode(),
+    name: source.fridgeName || "",
+    familyCode: normalizeFamilyCode(source.familyCode) || "",
     activeMemberId: source.activeMemberId,
     maxZ: source.maxZ || 20,
     notifications: source.notifications || [],
@@ -202,7 +108,6 @@ function fridgeSnapshot(source = state) {
 
 function normalizeFridge(source, index = 0) {
   const flat = normalizeFlatState({
-    ...clone(defaultState),
     ...source,
     familyCode: source.familyCode || source.inviteCode || source.id,
     fridgeName: source.name || source.fridgeName || (index === 0 ? "小家的冰箱" : `冰箱 ${index + 1}`)
@@ -215,16 +120,14 @@ function normalizeFridge(source, index = 0) {
 }
 
 function buildFridges(source, activeFlat) {
-  const rawFridges = Array.isArray(source.fridges) && source.fridges.length
-    ? source.fridges
-    : [activeFlat];
+  const rawFridges = Array.isArray(source.fridges) ? source.fridges : [];
   const seen = new Set();
   const fridges = rawFridges.map((fridge, index) => normalizeFridge(fridge, index)).filter((fridge) => {
     if (seen.has(fridge.id)) return false;
     seen.add(fridge.id);
     return true;
   });
-  if (!seen.has(activeFlat.familyCode)) fridges.unshift(normalizeFridge(activeFlat, 0));
+  if (activeFlat.familyCode && !seen.has(activeFlat.familyCode)) fridges.unshift(normalizeFridge(activeFlat, 0));
   return fridges;
 }
 
@@ -247,6 +150,7 @@ function setCloudPersistHandler(handler) {
 
 function activeFridgeSnapshot() {
   saveActiveFridge();
+  if (!state.familyCode) return null;
   return fridgeSnapshot(state);
 }
 
@@ -269,6 +173,7 @@ function applyRemoteFridgeSnapshot(snapshot) {
 
 function saveActiveFridge() {
   if (!state?.fridges) return;
+  if (!state.familyCode) return;
   const snapshot = fridgeSnapshot(state);
   const index = state.fridges.findIndex((fridge) => fridge.id === snapshot.id);
   if (index >= 0) state.fridges[index] = snapshot;
@@ -280,8 +185,13 @@ function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : clone(defaultState);
+    if (!raw) return clone(defaultState);
+    if (parsed.familyCode === "FRIDGE08" && (!Array.isArray(parsed.fridges) || parsed.fridges.every((fridge) => fridge.familyCode === "FRIDGE08"))) {
+      return clone(defaultState);
+    }
     const flat = normalizeFlatState(parsed);
-    const fridges = buildFridges(parsed, flat);
+    const fridges = buildFridges(parsed, flat).filter((fridge) => fridge.familyCode !== "FRIDGE08");
+    if (!fridges.length) return clone(defaultState);
     const activeId = normalizeFamilyCode(parsed.activeFridgeId || flat.familyCode);
     const activeFridge = fridges.find((fridge) => fridge.id === activeId) || fridges[0];
     return {
@@ -292,19 +202,16 @@ function loadState() {
       fridges
     };
   } catch (error) {
-    const flat = normalizeFlatState(clone(defaultState));
-    return {
-      ...flat,
-      fridges: [fridgeSnapshot(flat)]
-    };
+    return clone(defaultState);
   }
 }
 
 function persist() {
   saveActiveFridge();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  if (!suppressCloudPersist && cloudPersistHandler) {
-    cloudPersistHandler(activeFridgeSnapshot());
+  const snapshot = activeFridgeSnapshot();
+  if (!suppressCloudPersist && cloudPersistHandler && snapshot) {
+    cloudPersistHandler(snapshot);
   }
 }
 
@@ -390,7 +297,7 @@ function createFamily(code, name) {
   state.familyCode = familyCode;
   state.activeFridgeId = familyCode;
   state.activeMemberId = "m1";
-  state.members = clone(defaultState.members);
+  state.members = cloneMembers();
   state.notes = [];
   state.notifications = [];
   state.firedReminderIds = [];
@@ -413,7 +320,7 @@ function joinFamily(code) {
   state.familyCode = cleanCode;
   state.activeFridgeId = cleanCode;
   state.activeMemberId = "m1";
-  state.members = clone(defaultState.members);
+  state.members = cloneMembers();
   state.notes = [];
   state.notifications = [];
   state.firedReminderIds = [];

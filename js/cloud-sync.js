@@ -112,7 +112,7 @@
   }
 
   function schedulePush(snapshot) {
-    if (!status.enabled || !supabase || applyingRemote) return;
+    if (!status.enabled || !supabase || applyingRemote || !snapshot?.familyCode) return;
     clearTimeout(pushTimer);
     pushTimer = setTimeout(async () => {
       try {
@@ -131,6 +131,12 @@
     try {
       setStatus({ syncing: true, error: null });
       const local = window.FridgeStore.activeFridgeSnapshot();
+      if (!local?.familyCode) {
+        if (channel) supabase.removeChannel(channel);
+        channel = null;
+        setStatus({ syncing: false, ready: false, lastSyncedAt: null, error: null });
+        return;
+      }
       const remote = await fetchRemoteFridge(local.familyCode);
       if (remote && (remote.updatedAt || 0) > (local.updatedAt || 0)) {
         applyRemotePayload(remote);

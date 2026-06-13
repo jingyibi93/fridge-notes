@@ -1,4 +1,4 @@
-const CACHE_NAME = "fridge-memo-pwa-v20260612";
+const CACHE_NAME = "fridge-memo-pwa-v20260613-clear-default";
 
 const CORE_ASSETS = [
   "./",

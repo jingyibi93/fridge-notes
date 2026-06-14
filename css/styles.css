@@ -310,6 +310,18 @@ button {
   display: none;
 }
 
+.fridge-manager-empty {
+  margin: 6px 0 2px;
+  padding: 18px 14px;
+  border: 1px dashed rgba(87, 66, 42, .18);
+  border-radius: 16px;
+  background: rgba(255, 250, 240, .54);
+  color: var(--muted);
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .fridge-manager-card {
   position: relative;
   display: grid;

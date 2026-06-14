@@ -82,8 +82,8 @@
     return data?.payload || null;
   }
 
-  function applyRemotePayload(payload) {
-    if (!payload || payload.syncClientId === clientId) return;
+  function applyRemotePayload(payload, force = false) {
+    if (!payload || (!force && payload.syncClientId === clientId)) return;
     applyingRemote = true;
     window.FridgeStore.applyRemoteFridgeSnapshot(payload);
     applyingRemote = false;
@@ -150,6 +150,29 @@
     }
   }
 
+  async function joinFridgeByCode(familyCode) {
+    if (!status.enabled) return false;
+    try {
+      setStatus({ syncing: true, error: null });
+      if (!supabase) supabase = await loadSupabase();
+      const cleanCode = String(familyCode || "").trim().toUpperCase();
+      const remote = await fetchRemoteFridge(cleanCode);
+      if (remote) {
+        applyRemotePayload(remote, true);
+        subscribe(cleanCode);
+        setStatus({ syncing: false, ready: true, lastSyncedAt: Date.now(), error: null });
+        return true;
+      }
+      await ensureRemoteFridge(window.FridgeStore.activeFridgeSnapshot());
+      subscribe(cleanCode);
+      setStatus({ syncing: false, lastSyncedAt: Date.now(), error: null });
+      return false;
+    } catch (error) {
+      setStatus({ syncing: false, error: error.message || "加入失败" });
+      return false;
+    }
+  }
+
   async function boot() {
     if (!status.enabled) {
       emitStatus();
@@ -170,6 +193,7 @@
     status,
     clientId,
     syncCurrentFridge,
+    joinFridgeByCode,
     schedulePush
   };
 

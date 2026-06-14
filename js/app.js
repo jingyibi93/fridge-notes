@@ -65,7 +65,7 @@ const memoryDetail = document.querySelector("#memoryDetail");
 const closeMemoryDetailButton = document.querySelector("#closeMemoryDetailButton");
 const memoryDetailDate = document.querySelector("#memoryDetailDate");
 const memoryDetailList = document.querySelector("#memoryDetailList");
-document.documentElement.dataset.appVersion = "20260613-clear-default";
+document.documentElement.dataset.appVersion = "20260613-join-delete-fix";
 
 const placeholders = {
   message: "写点今天想被看见的小事...",
@@ -125,6 +125,10 @@ function escapeHtml(text) {
 function renderHomeFridges() {
   const fridges = window.FridgeStore.getFridgeSummaries();
   homeFridgeCount.textContent = `${fridges.length} 个`;
+  if (!fridges.length) {
+    fridgeManagerList.innerHTML = `<p class="fridge-manager-empty">还没有加入冰箱</p>`;
+    return;
+  }
   fridgeManagerList.innerHTML = fridges.map((fridge) => `
     <article class="fridge-manager-card ${fridge.active ? "active" : ""}" data-fridge-id="${fridge.id}">
       <div class="fridge-manager-main">
@@ -206,31 +210,50 @@ function closeHomeSetup() {
   homeSetupSheet.setAttribute("aria-hidden", "true");
 }
 
-function submitHomeSetup() {
+async function submitHomeSetup() {
   const rawCode = homeSetupCodeInput.value.trim();
   const codeInput = normalizeInviteCode(rawCode);
   const fridgeName = homeFridgeNameInput.value.trim();
   const name = homeSetupNameInput.value.trim() || "我";
   let code = null;
+  const originalText = homeSetupConfirmButton.textContent;
 
-  if (homeSetupMode === "create") {
-    if (rawCode && codeInput.length !== 8) {
-      showToast("邀请码需要 8 位，留空可自动创建");
-      return;
+  try {
+    if (homeSetupMode === "create") {
+      if (rawCode && codeInput.length !== 8) {
+        showToast("邀请码需要 8 位，留空可自动创建");
+        return;
+      }
+      homeSetupConfirmButton.disabled = true;
+      homeSetupConfirmButton.textContent = "创建中...";
+      code = window.FridgeStore.createFamily(codeInput, fridgeName);
+      window.FridgeStore.updateActiveMemberProfile({ name, color: selectedHomeColor });
+      if (window.FridgeCloudSync?.syncCurrentFridge) await window.FridgeCloudSync.syncCurrentFridge();
+    } else {
+      code = window.FridgeStore.joinFamily(codeInput);
+      if (!code) {
+        showToast("请输入 8 位邀请码");
+        return;
+      }
+      homeSetupConfirmButton.disabled = true;
+      homeSetupConfirmButton.textContent = "加入中...";
+      if (window.FridgeCloudSync?.joinFridgeByCode) {
+        const foundRemote = await window.FridgeCloudSync.joinFridgeByCode(code);
+        if (!foundRemote) showToast("暂时没找到云端冰箱，已先创建本地冰箱");
+      }
+      window.FridgeStore.joinAsMember({ name, color: selectedHomeColor });
+      if (window.FridgeCloudSync?.syncCurrentFridge) await window.FridgeCloudSync.syncCurrentFridge();
     }
-    code = window.FridgeStore.createFamily(codeInput, fridgeName);
-  } else {
-    code = window.FridgeStore.joinFamily(codeInput);
-    if (!code) {
-      showToast("请输入 8 位邀请码");
-      return;
-    }
+  } catch (error) {
+    showToast("操作失败，请稍后再试");
+    return;
+  } finally {
+    homeSetupConfirmButton.disabled = false;
+    homeSetupConfirmButton.textContent = originalText;
   }
 
-  window.FridgeStore.updateActiveMemberProfile({ name, color: selectedHomeColor });
   closeHomeSetup();
   refresh();
-  window.FridgeCloudSync?.syncCurrentFridge();
   showToast(homeSetupMode === "create" ? `新冰箱邀请码：${code}` : `已加入冰箱 ${code}`);
   enterFridge();
 }
@@ -684,7 +707,7 @@ function registerEvents() {
       if (!confirm(`确定删除「${name}」吗？`)) return;
       const result = window.FridgeStore.deleteFridge(deleteButton.dataset.fridgeDelete);
       if (!result.deleted) {
-        showToast(result.reason === "last" ? "至少保留一个冰箱" : "没有找到这个冰箱");
+        showToast("没有找到这个冰箱");
         return;
       }
       refresh();

@@ -289,6 +289,29 @@ function updateActiveMemberProfile({ name, color }) {
   return member;
 }
 
+function joinAsMember({ name, color }) {
+  const cleanName = String(name || "我").trim().slice(0, 8) || "我";
+  const existing = state.members.find((member) => member.name === cleanName);
+  if (existing) {
+    existing.left = false;
+    if (color) existing.color = color;
+    state.activeMemberId = existing.id;
+    persist();
+    return existing;
+  }
+
+  const member = {
+    id: uid("m"),
+    name: cleanName,
+    color: color || "#a83232",
+    left: false
+  };
+  state.members.push(member);
+  state.activeMemberId = member.id;
+  persist();
+  return member;
+}
+
 function createFamily(code, name) {
   saveActiveFridge();
   const cleanCode = normalizeFamilyCode(code);
@@ -363,12 +386,22 @@ function getFridgeSummaries() {
 function deleteFridge(fridgeId) {
   saveActiveFridge();
   const cleanId = normalizeFamilyCode(fridgeId);
-  if (state.fridges.length <= 1) return { deleted: false, reason: "last" };
   const index = state.fridges.findIndex((item) => item.id === cleanId || item.familyCode === cleanId);
   if (index < 0) return { deleted: false, reason: "missing" };
   const deleted = state.fridges[index];
   state.fridges.splice(index, 1);
-  if (deleted.id === state.activeFridgeId || deleted.familyCode === state.familyCode) {
+  if (!state.fridges.length) {
+    state.fridgeName = "";
+    state.familyCode = "";
+    state.activeFridgeId = "";
+    state.activeMemberId = "m1";
+    state.maxZ = 20;
+    state.notifications = [];
+    state.firedReminderIds = [];
+    state.favoriteArchive = [];
+    state.members = cloneMembers();
+    state.notes = [];
+  } else if (deleted.id === state.activeFridgeId || deleted.familyCode === state.familyCode) {
     applyFridge(state.fridges[0]);
   }
   persist();
@@ -734,6 +767,7 @@ window.FridgeStore = {
   leaveMember,
   rejoinMember,
   updateActiveMemberProfile,
+  joinAsMember,
   createFamily,
   joinFamily,
   selectFridge,

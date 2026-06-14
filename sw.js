@@ -1,4 +1,4 @@
-const CACHE_NAME = "fridge-memo-pwa-v20260613-join-delete-fix";
+const CACHE_NAME = "fridge-memo-pwa-v20260614-enter-after-create";
 
 const CORE_ASSETS = [
   "./",

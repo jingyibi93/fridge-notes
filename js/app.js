@@ -65,7 +65,7 @@ const memoryDetail = document.querySelector("#memoryDetail");
 const closeMemoryDetailButton = document.querySelector("#closeMemoryDetailButton");
 const memoryDetailDate = document.querySelector("#memoryDetailDate");
 const memoryDetailList = document.querySelector("#memoryDetailList");
-document.documentElement.dataset.appVersion = "20260613-join-delete-fix";
+document.documentElement.dataset.appVersion = "20260614-enter-after-create";
 
 const placeholders = {
   message: "写点今天想被看见的小事...",
@@ -228,7 +228,7 @@ async function submitHomeSetup() {
       homeSetupConfirmButton.textContent = "创建中...";
       code = window.FridgeStore.createFamily(codeInput, fridgeName);
       window.FridgeStore.updateActiveMemberProfile({ name, color: selectedHomeColor });
-      if (window.FridgeCloudSync?.syncCurrentFridge) await window.FridgeCloudSync.syncCurrentFridge();
+      window.FridgeCloudSync?.syncCurrentFridge?.();
     } else {
       code = window.FridgeStore.joinFamily(codeInput);
       if (!code) {

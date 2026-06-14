@@ -5,7 +5,7 @@ const noteLabels = {
   photo: "图片冰箱贴"
 };
 
-const MAGNET_ASSET_PATHS = [
+const RENDER_MAGNET_ASSET_PATHS = [
   "assets/magnets/beer.png",
   "assets/magnets/yangjiaobao.png",
   "assets/magnets/pain.png",
@@ -29,7 +29,7 @@ const MAGNET_ASSET_PATHS = [
   "assets/magnets/tomato-bag.png"
 ];
 
-const renderMagnetAssets = MAGNET_ASSET_PATHS;
+const renderMagnetAssets = RENDER_MAGNET_ASSET_PATHS;
 
 const oldPins = new Set(["✦", "♡", "✿", "✓", "☎", "🍅", "🍓", "🥐", "🥨", "🍞", "🥖", "🥝", "🍩", "☕", "🥛", "🧈", "🍳", "🌶️", "🧄", "🍎"]);
 

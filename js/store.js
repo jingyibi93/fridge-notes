@@ -1,7 +1,7 @@
 const STORAGE_KEY = "fridge_memo_app_state_v1";
 
 const now = Date.now();
-const MAGNET_ASSET_PATHS = [
+const STORE_MAGNET_ASSET_PATHS = [
   "assets/magnets/beer.png",
   "assets/magnets/yangjiaobao.png",
   "assets/magnets/pain.png",
@@ -25,7 +25,7 @@ const MAGNET_ASSET_PATHS = [
   "assets/magnets/tomato-bag.png"
 ];
 
-const storeMagnetAssets = MAGNET_ASSET_PATHS;
+const storeMagnetAssets = STORE_MAGNET_ASSET_PATHS;
 
 const defaultMembers = [
   { id: "m1", name: "我", color: "#a83232", left: false }

@@ -1,4 +1,4 @@
-const CACHE_NAME = "fridge-memo-pwa-v20260614-enter-after-create";
+const CACHE_NAME = "fridge-memo-pwa-v20260614-global-var-fix";
 
 const CORE_ASSETS = [
   "./",

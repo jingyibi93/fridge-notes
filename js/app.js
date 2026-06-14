@@ -65,7 +65,7 @@ const memoryDetail = document.querySelector("#memoryDetail");
 const closeMemoryDetailButton = document.querySelector("#closeMemoryDetailButton");
 const memoryDetailDate = document.querySelector("#memoryDetailDate");
 const memoryDetailList = document.querySelector("#memoryDetailList");
-document.documentElement.dataset.appVersion = "20260614-enter-after-create";
+document.documentElement.dataset.appVersion = "20260614-global-var-fix";
 
 const placeholders = {
   message: "写点今天想被看见的小事...",
